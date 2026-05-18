@@ -14,8 +14,11 @@ README.md
 ```
 
 The page opens GitHub's new-issue screen with the title, body, and queued label
-prefilled for the private `codex_automation` trigger repository. The user signs
-in to GitHub normally and submits the issue there.
+requested for the private `codex_automation` trigger repository. The user signs
+in to GitHub normally and submits the issue there. If GitHub does not preselect
+the label in the issue screen, the generated `Queue: codex:queued` body line is
+still enough for the VM runner to pick up the trigger after the runner update is
+deployed.
 
 It does not contain the VM runner, BugDB helpers, `config.json`, OAuth tokens,
 GitHub personal access tokens, or local ALM paths. The browser UI does not call

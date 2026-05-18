@@ -334,6 +334,8 @@
   function buildIssueBody() {
     var context = selectedContextForIssue();
     var lines = [
+      "Queue: " + queuedLabel(),
+      "",
       "Project: " + selectedAliasForIssue(),
       ""
     ];
@@ -413,6 +415,7 @@
     params.set("title", title);
     params.set("body", body);
     params.set("labels", queuedLabel());
+    params.append("labels[]", queuedLabel());
     return "https://github.com/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues/new?" + params.toString();
   }
 
