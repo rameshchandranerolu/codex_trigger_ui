@@ -91,6 +91,43 @@
         { "name": "release", "label": "Release email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
         { "name": "cc", "label": "CC emails", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
       ]
+    },
+    {
+      "id": "project.inspect",
+      "label": "Inspect Selected Project",
+      "workflows": ["project", "custom"],
+      "order": 110,
+      "template": "inspect selected project focus={{focus}}",
+      "parameters": [
+        { "name": "focus", "label": "Focus", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$" }
+      ]
+    },
+    {
+      "id": "project.run-tests",
+      "label": "Run Project Tests",
+      "workflows": ["project", "custom"],
+      "order": 120,
+      "template": "run project tests command={{test_command}}",
+      "parameters": [
+        { "name": "test_command", "label": "Test command", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$" }
+      ]
+    },
+    {
+      "id": "custom.request",
+      "label": "Custom Request",
+      "workflow": "custom",
+      "order": 900,
+      "template": "custom request: {{request}}",
+      "parameters": [
+        {
+          "name": "request",
+          "label": "Request",
+          "type": "textarea",
+          "rows": 4,
+          "required": true,
+          "pattern": "^[A-Za-z0-9_ ./,:@+=()\\n-]+$"
+        }
+      ]
     }
   ]
 }

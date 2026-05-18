@@ -152,6 +152,8 @@
       "name": "Project Work",
       "kind": "Local Project",
       "description": "Inspect, fix, or test a configured local ALM checkout.",
+      "requiresProject": true,
+      "projectAliases": ["employment-process-ui", "employment-other-ui", "employment-all"],
       "context": "Local project workflow. Work only in the selected local project path unless the task explicitly widens scope.",
       "operations": [
         {
@@ -187,9 +189,42 @@
           "titleField": "details"
         }
       ]
+    },
+    {
+      "id": "custom",
+      "name": "Custom Commands",
+      "kind": "Command Catalog",
+      "description": "Run configured command intents outside the ADE-only workflow.",
+      "requiresProject": true,
+      "projectAliases": ["codex-automation", "ade", "employment-process-ui", "employment-other-ui", "employment-all"],
+      "context": "Custom command workflow. Use the selected run context and the validated command catalog. Use ADE Lens only for ADE command IDs or ADE-specific task content.",
+      "operations": [
+        {
+          "id": "run",
+          "name": "Run Commands",
+          "description": "Run selected command-catalog intents or a scoped custom task.",
+          "fields": ["details"],
+          "requiredFields": ["details"],
+          "titleField": "details"
+        }
+      ]
     }
   ],
   "projects": [
+    {
+      "alias": "codex-automation",
+      "name": "Codex Automation",
+      "kind": "Automation",
+      "description": "Runner and UI automation repository.",
+      "context": "Use the codex_automation repository for runner, UI, and helper-script work."
+    },
+    {
+      "alias": "ade",
+      "name": "ADE Home",
+      "kind": "ADE Context",
+      "description": "Normal login/ADE environment.",
+      "context": "Use the normal login home/ADE environment for ADE command orchestration."
+    },
     {
       "alias": "employment-process-ui",
       "name": "Employment Process UI",

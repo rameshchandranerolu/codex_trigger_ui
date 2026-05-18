@@ -344,6 +344,10 @@ button {
   margin-bottom: 0;
 }
 
+.command-param-wide {
+  grid-column: 1 / -1;
+}
+
 .icon-button {
   width: 30px;
   height: 30px;

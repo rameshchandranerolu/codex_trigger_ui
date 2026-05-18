@@ -17,6 +17,7 @@
         kind: "Local Project",
         description: "Inspect, fix, or test a configured local ALM checkout.",
         requiresProject: true,
+        projectAliases: ["codex-automation"],
         operations: [
           {
             id: "custom",
@@ -275,11 +276,23 @@
     state.selectedWorkflowId = workflowId;
     var operation = firstOperation(selectedWorkflow());
     state.selectedOperationId = operation ? operation.id : "";
-    if (!state.selectedProjectAlias && state.projects.length) {
-      state.selectedProjectAlias = state.projects[0].alias;
-    }
+    ensureSelectedProjectForWorkflow();
     renderDynamicFields();
     renderCommandBuilder();
+  }
+
+  function ensureSelectedProjectForWorkflow() {
+    var projects = projectOptionsForWorkflow();
+    if (!projects.length) {
+      state.selectedProjectAlias = "";
+      return;
+    }
+    var hasSelected = projects.some(function (project) {
+      return project.alias === state.selectedProjectAlias;
+    });
+    if (!hasSelected) {
+      state.selectedProjectAlias = projects[0].alias;
+    }
   }
 
   function updateSelectedWorkflowLabel() {
@@ -358,11 +371,12 @@
   }
 
   function projectSelectHtml() {
+    var projects = projectOptionsForWorkflow();
     return [
       '<label class="field">',
       "<span>Project</span>",
       '<select id="projectInput">',
-      state.projects.map(function (project) {
+      projects.map(function (project) {
         var selected = project.alias === state.selectedProjectAlias ? " selected" : "";
         return '<option value="' + escapeHtml(project.alias) + '"' + selected + ">" + escapeHtml(project.name || project.alias) + "</option>";
       }).join(""),
@@ -494,6 +508,14 @@
     var name = normalizeParamName(param.name);
     var label = param.label || name;
     var required = param.required ? " *" : "";
+    if (param.type === "textarea") {
+      return [
+        '<label class="field command-param command-param-wide">',
+        "<span>" + escapeHtml(label + required) + "</span>",
+        '<textarea rows="' + (param.rows || 4) + '" data-command-uid="' + escapeHtml(uid) + '" data-command-param="' + escapeHtml(name) + '">' + escapeHtml(value) + "</textarea>",
+        "</label>"
+      ].join("");
+    }
     if (Array.isArray(param.options) && param.options.length) {
       return [
         '<label class="field command-param">',
@@ -602,7 +624,34 @@
 
   function commandsForWorkflow(workflowId) {
     return state.commands.filter(function (command) {
-      return command.workflow === workflowId;
+      return commandAllowedForWorkflow(command, workflowId);
+    });
+  }
+
+  function commandAllowedForWorkflow(command, workflowId) {
+    if (workflowId === "custom") {
+      return true;
+    }
+    if (Array.isArray(command.workflows) && command.workflows.length) {
+      return command.workflows.indexOf("any") !== -1 || command.workflows.indexOf(workflowId) !== -1;
+    }
+    if (!command.workflow || command.workflow === "any" || command.workflow === workflowId) {
+      return true;
+    }
+    return false;
+  }
+
+  function projectOptionsForWorkflow() {
+    var workflow = selectedWorkflow();
+    if (!workflow || !Array.isArray(workflow.projectAliases) || !workflow.projectAliases.length) {
+      return state.projects;
+    }
+    var allowed = {};
+    workflow.projectAliases.forEach(function (alias) {
+      allowed[alias] = true;
+    });
+    return state.projects.filter(function (project) {
+      return allowed[project.alias];
     });
   }
 
@@ -729,7 +778,13 @@
           value = String(param.default);
         }
         if (value) {
-          lines.push("  " + name + ": " + value);
+          value.split(/\r?\n/).forEach(function (valueLine, index) {
+            if (index === 0) {
+              lines.push("  " + name + ": " + valueLine);
+            } else {
+              lines.push("    " + valueLine);
+            }
+          });
         }
       });
     });
@@ -825,7 +880,7 @@
       if (!spec) {
         throw new Error("Unknown command: " + entry.id + ".");
       }
-      if (workflow && spec.workflow !== workflow.id) {
+      if (workflow && !commandAllowedForWorkflow(spec, workflow.id)) {
         throw new Error("Command " + entry.id + " is not valid for this workflow.");
       }
       (spec.parameters || []).forEach(function (param) {
