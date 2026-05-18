@@ -9,6 +9,7 @@ index.html
 app.js
 styles.css
 projects.json
+commands.json
 .nojekyll
 README.md
 ```
@@ -29,5 +30,7 @@ project aliases, and descriptions non-sensitive.
 
 The UI is workflow-first. It generates `Workflow: bugdb`, `Workflow: ade`, or
 `Workflow: project`. `Project:` is generated only for `Workflow: project`.
+`commands.json` drives the ADE command picker and emits structured `Commands:`
+entries that the private runner validates before execution.
 Keep the private runner repo's `config.json` mapped with matching workflows and
 run-project aliases before using newly added workflow buttons.

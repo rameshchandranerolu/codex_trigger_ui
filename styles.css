@@ -272,6 +272,93 @@ button {
   margin-bottom: 2px;
 }
 
+.command-builder {
+  margin-bottom: 14px;
+}
+
+.command-panel {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  padding: 12px;
+}
+
+.command-panel-head,
+.command-card-head,
+.command-adder {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.command-panel-head,
+.command-card-head {
+  justify-content: space-between;
+}
+
+.command-panel h3 {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0;
+}
+
+.command-adder {
+  flex: 1;
+  justify-content: flex-end;
+}
+
+.command-adder select {
+  min-width: 190px;
+  max-width: 260px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 9px 10px;
+}
+
+.command-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.command-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  padding: 11px;
+}
+
+.command-card-head strong {
+  font-size: 13px;
+}
+
+.command-param-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.command-param {
+  margin-bottom: 0;
+}
+
+.icon-button {
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.empty-command-row {
+  color: var(--muted);
+  font-size: 12px;
+}
+
 .actions {
   display: flex;
   justify-content: flex-end;
@@ -374,8 +461,21 @@ button {
   }
 
   .form-grid,
-  .mode-grid {
+  .mode-grid,
+  .command-param-grid {
     grid-template-columns: 1fr;
+  }
+
+  .command-panel-head,
+  .command-adder {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .command-adder select {
+    max-width: none;
+    min-width: 0;
+    width: 100%;
   }
 
   .actions {

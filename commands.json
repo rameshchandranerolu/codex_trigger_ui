@@ -1,0 +1,96 @@
+{
+  "commands": [
+    {
+      "id": "ade.create-view",
+      "label": "Create ADE View",
+      "workflow": "ade",
+      "order": 10,
+      "template": "ade createview view={{view}} branch={{branch}} txn={{txn}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "branch", "label": "Branch", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "txn", "label": "Transaction", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+      ]
+    },
+    {
+      "id": "ade.use-view",
+      "label": "Enter ADE View",
+      "workflow": "ade",
+      "order": 20,
+      "template": "ade useview view={{view}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" }
+      ]
+    },
+    {
+      "id": "ade.begintrans",
+      "label": "Create Transaction",
+      "workflow": "ade",
+      "order": 30,
+      "template": "ade begintrans view={{view}} txn={{txn}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "txn", "label": "Transaction", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" }
+      ]
+    },
+    {
+      "id": "ade.status",
+      "label": "View Status",
+      "workflow": "ade",
+      "order": 40,
+      "template": "ade status view={{view}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" }
+      ]
+    },
+    {
+      "id": "ade.refresh-view",
+      "label": "Refresh View",
+      "workflow": "ade",
+      "order": 50,
+      "template": "ade refreshview view={{view}} branch={{branch}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "branch", "label": "Branch", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+      ]
+    },
+    {
+      "id": "ade.checkin-save",
+      "label": "Check In And Save",
+      "workflow": "ade",
+      "order": 60,
+      "template": "ade checkin-save view={{view}} txn={{txn}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "txn", "label": "Transaction", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+      ]
+    },
+    {
+      "id": "orareview.create",
+      "label": "Create OraReview",
+      "workflow": "ade",
+      "order": 70,
+      "template": "orareview create view={{view}} bug={{bug}} reviewers={{reviewers}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
+        { "name": "reviewers", "label": "Reviewers", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
+      ]
+    },
+    {
+      "id": "mergereq.submit",
+      "label": "Submit Merge Request",
+      "workflow": "ade",
+      "order": 80,
+      "template": "mergereq submit view={{view}} bug={{bug}} mode={{mode}} manager={{manager}} release={{release}} cc={{cc}}",
+      "parameters": [
+        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
+        { "name": "mode", "label": "Mode", "required": true, "default": "check", "options": ["check", "submit", "db-only", "no-mail"] },
+        { "name": "manager", "label": "Manager email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
+        { "name": "release", "label": "Release email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
+        { "name": "cc", "label": "CC emails", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
+      ]
+    }
+  ]
+}

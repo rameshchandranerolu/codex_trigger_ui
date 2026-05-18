@@ -35,7 +35,8 @@
         description: "Runner and UI automation.",
         context: "Use the codex_automation repository."
       }
-    ]
+    ],
+    commands: []
   };
 
   var fieldSpecs = {
@@ -99,6 +100,9 @@
     config: fallbackConfig,
     workflows: [],
     projects: [],
+    commands: [],
+    selectedCommands: [],
+    commandSerial: 0,
     selectedWorkflowId: "",
     selectedOperationId: "",
     selectedProjectAlias: ""
@@ -124,6 +128,7 @@
       "ownerInput",
       "repoInput",
       "dynamicFields",
+      "commandBuilder",
       "contextInput",
       "titleInput",
       "previewButton",
@@ -161,17 +166,29 @@
 
   function loadConfig() {
     setStatus("Loading", "busy");
-    fetch("./projects.json", { cache: "no-store" })
-      .then(function (response) {
+    Promise.all([
+      fetch("./projects.json", { cache: "no-store" }).then(function (response) {
         if (!response.ok) {
           throw new Error("Unable to load projects.json");
         }
         return response.json();
+      }),
+      fetch("./commands.json", { cache: "no-store" }).then(function (response) {
+        if (!response.ok) {
+          return { commands: [] };
+        }
+        return response.json();
+      }).catch(function () {
+        return { commands: [] };
       })
-      .then(function (config) {
+    ])
+      .then(function (response) {
+        var config = response[0];
+        var commandConfig = response[1] || {};
         state.config = config;
         state.workflows = Array.isArray(config.workflows) ? config.workflows : [];
         state.projects = Array.isArray(config.projects) ? config.projects : [];
+        state.commands = Array.isArray(commandConfig.commands) ? commandConfig.commands : [];
         if (!state.workflows.length) {
           throw new Error("projects.json must define workflows");
         }
@@ -191,6 +208,8 @@
         state.config = fallbackConfig;
         state.workflows = fallbackConfig.workflows;
         state.projects = fallbackConfig.projects;
+        state.commands = fallbackConfig.commands;
+        state.selectedCommands = [];
         selectWorkflow(state.workflows[0].id);
         renderWorkflows();
         updateRepoLabel();
@@ -250,6 +269,9 @@
   }
 
   function selectWorkflow(workflowId) {
+    if (state.selectedWorkflowId !== workflowId) {
+      state.selectedCommands = [];
+    }
     state.selectedWorkflowId = workflowId;
     var operation = firstOperation(selectedWorkflow());
     state.selectedOperationId = operation ? operation.id : "";
@@ -257,6 +279,7 @@
       state.selectedProjectAlias = state.projects[0].alias;
     }
     renderDynamicFields();
+    renderCommandBuilder();
   }
 
   function updateSelectedWorkflowLabel() {
@@ -313,6 +336,7 @@
       element.addEventListener("change", updatePreview);
     });
     updateSelectedWorkflowLabel();
+    renderCommandBuilder();
   }
 
   function operationSelectHtml(workflow) {
@@ -369,6 +393,181 @@
     ].join("");
   }
 
+  function renderCommandBuilder() {
+    var workflow = selectedWorkflow();
+    var commands = commandsForWorkflow(workflow ? workflow.id : "");
+    if (!els.commandBuilder || !commands.length) {
+      if (els.commandBuilder) {
+        els.commandBuilder.innerHTML = "";
+      }
+      return;
+    }
+
+    var selectedId = commands[0].id;
+    var html = [
+      '<section class="command-panel" aria-label="Command sequence">',
+      '<div class="command-panel-head">',
+      "<h3>Commands</h3>",
+      '<div class="command-adder">',
+      '<select id="commandSelect">',
+      commands.map(function (command) {
+        return '<option value="' + escapeHtml(command.id) + '">' + escapeHtml(command.label || command.id) + "</option>";
+      }).join(""),
+      "</select>",
+      '<button id="addCommandButton" class="secondary-button" type="button">Add</button>',
+      "</div>",
+      "</div>",
+      '<div class="command-list">'
+    ];
+
+    if (!state.selectedCommands.length) {
+      html.push('<div class="empty-command-row">No commands selected</div>');
+    }
+
+    state.selectedCommands.forEach(function (entry, index) {
+      var spec = commandSpec(entry.id);
+      if (!spec) {
+        return;
+      }
+      html.push(commandCardHtml(entry, spec, index));
+    });
+
+    html.push("</div></section>");
+    els.commandBuilder.innerHTML = html.join("");
+
+    var commandSelect = document.getElementById("commandSelect");
+    if (commandSelect) {
+      commandSelect.value = selectedId;
+    }
+    var addButton = document.getElementById("addCommandButton");
+    if (addButton) {
+      addButton.addEventListener("click", function () {
+        addSelectedCommand(commandSelect ? commandSelect.value : selectedId);
+      });
+    }
+
+    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-remove-command]"), function (button) {
+      button.addEventListener("click", function () {
+        removeCommand(button.getAttribute("data-remove-command"));
+      });
+    });
+    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-command-param]"), function (element) {
+      element.addEventListener("input", function () {
+        updateCommandParam(
+          element.getAttribute("data-command-uid"),
+          element.getAttribute("data-command-param"),
+          element.value
+        );
+      });
+      element.addEventListener("change", function () {
+        updateCommandParam(
+          element.getAttribute("data-command-uid"),
+          element.getAttribute("data-command-param"),
+          element.value
+        );
+      });
+    });
+  }
+
+  function commandCardHtml(entry, spec, index) {
+    var params = Array.isArray(spec.parameters) ? spec.parameters : [];
+    var html = [
+      '<article class="command-card">',
+      '<div class="command-card-head">',
+      "<strong>" + (index + 1) + ". " + escapeHtml(spec.label || spec.id) + "</strong>",
+      '<button class="icon-button" type="button" aria-label="Remove command" title="Remove command" data-remove-command="' + escapeHtml(entry.uid) + '">x</button>',
+      "</div>",
+      '<div class="command-param-grid">'
+    ];
+
+    params.forEach(function (param) {
+      var name = normalizeParamName(param.name);
+      var value = entry.params && entry.params[name] ? entry.params[name] : "";
+      html.push(commandParamHtml(entry.uid, param, value));
+    });
+
+    html.push("</div></article>");
+    return html.join("");
+  }
+
+  function commandParamHtml(uid, param, value) {
+    var name = normalizeParamName(param.name);
+    var label = param.label || name;
+    var required = param.required ? " *" : "";
+    if (Array.isArray(param.options) && param.options.length) {
+      return [
+        '<label class="field command-param">',
+        "<span>" + escapeHtml(label + required) + "</span>",
+        '<select data-command-uid="' + escapeHtml(uid) + '" data-command-param="' + escapeHtml(name) + '">',
+        param.options.map(function (option) {
+          var selected = String(option) === String(value || param.default || "") ? " selected" : "";
+          return '<option value="' + escapeHtml(option) + '"' + selected + ">" + escapeHtml(option) + "</option>";
+        }).join(""),
+        "</select>",
+        "</label>"
+      ].join("");
+    }
+    return [
+      '<label class="field command-param">',
+      "<span>" + escapeHtml(label + required) + "</span>",
+      '<input data-command-uid="' + escapeHtml(uid) + '" data-command-param="' + escapeHtml(name) + '" autocomplete="off" spellcheck="false" value="' + escapeHtml(value) + '">',
+      "</label>"
+    ].join("");
+  }
+
+  function addSelectedCommand(commandId) {
+    var spec = commandSpec(commandId);
+    if (!spec) {
+      return;
+    }
+    state.commandSerial += 1;
+    state.selectedCommands.push({
+      uid: "cmd" + state.commandSerial,
+      id: commandId,
+      params: defaultCommandParams(spec)
+    });
+    renderCommandBuilder();
+    updatePreview();
+  }
+
+  function removeCommand(uid) {
+    state.selectedCommands = state.selectedCommands.filter(function (entry) {
+      return entry.uid !== uid;
+    });
+    renderCommandBuilder();
+    updatePreview();
+  }
+
+  function updateCommandParam(uid, paramName, value) {
+    state.selectedCommands.forEach(function (entry) {
+      if (entry.uid === uid) {
+        entry.params[paramName] = value.trim();
+      }
+    });
+    updatePreview();
+  }
+
+  function defaultCommandParams(spec) {
+    var params = {};
+    (spec.parameters || []).forEach(function (param) {
+      var name = normalizeParamName(param.name);
+      if (param.default !== undefined) {
+        params[name] = String(param.default);
+      } else if (name === "view") {
+        params[name] = inputValue("adeView");
+      } else if (name === "branch") {
+        params[name] = inputValue("adeBranch");
+      } else if (name === "txn") {
+        params[name] = inputValue("adeTxn");
+      } else if (name === "bug") {
+        params[name] = inputValue("bugNumber");
+      } else {
+        params[name] = "";
+      }
+    });
+    return params;
+  }
+
   function selectedWorkflow() {
     return state.workflows.find(function (workflow) {
       return workflow.id === state.selectedWorkflowId;
@@ -399,6 +598,22 @@
 
   function operationFields(operation) {
     return operation && Array.isArray(operation.fields) ? operation.fields : ["details"];
+  }
+
+  function commandsForWorkflow(workflowId) {
+    return state.commands.filter(function (command) {
+      return command.workflow === workflowId;
+    });
+  }
+
+  function commandSpec(commandId) {
+    return state.commands.find(function (command) {
+      return command.id === commandId;
+    }) || null;
+  }
+
+  function normalizeParamName(value) {
+    return String(value || "").trim().toLowerCase().replace(/-/g, "_");
   }
 
   function queuedLabel() {
@@ -495,6 +710,32 @@
     return parts.join("\n\n");
   }
 
+  function buildCommandLines() {
+    if (!state.selectedCommands.length) {
+      return [];
+    }
+
+    var lines = ["Commands:"];
+    state.selectedCommands.forEach(function (entry) {
+      var spec = commandSpec(entry.id);
+      if (!spec) {
+        return;
+      }
+      lines.push("- command: " + entry.id);
+      (spec.parameters || []).forEach(function (param) {
+        var name = normalizeParamName(param.name);
+        var value = entry.params && entry.params[name] ? entry.params[name].trim() : "";
+        if (!value && param.default !== undefined) {
+          value = String(param.default);
+        }
+        if (value) {
+          lines.push("  " + name + ": " + value);
+        }
+      });
+    });
+    return lines;
+  }
+
   function buildIssueBody() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
@@ -515,6 +756,12 @@
     if (context) {
       lines.push("Context:");
       lines.push(context);
+      lines.push("");
+    }
+
+    var commandLines = buildCommandLines();
+    if (commandLines.length) {
+      Array.prototype.push.apply(lines, commandLines);
       lines.push("");
     }
 
@@ -567,6 +814,46 @@
         throw new Error("Enter " + (fieldSpecs[fieldName] ? fieldSpecs[fieldName].label : fieldName) + ".");
       }
     });
+
+    validateSelectedCommands(workflow);
+  }
+
+  function validateSelectedCommands(workflow) {
+    var views = {};
+    state.selectedCommands.forEach(function (entry) {
+      var spec = commandSpec(entry.id);
+      if (!spec) {
+        throw new Error("Unknown command: " + entry.id + ".");
+      }
+      if (workflow && spec.workflow !== workflow.id) {
+        throw new Error("Command " + entry.id + " is not valid for this workflow.");
+      }
+      (spec.parameters || []).forEach(function (param) {
+        var name = normalizeParamName(param.name);
+        var value = entry.params && entry.params[name] ? entry.params[name].trim() : "";
+        if (!value && param.default !== undefined) {
+          value = String(param.default);
+        }
+        if (param.required && !value) {
+          throw new Error("Enter " + (param.label || name) + " for " + (spec.label || spec.id) + ".");
+        }
+        if (value && Array.isArray(param.options) && param.options.length && param.options.indexOf(value) === -1) {
+          throw new Error((param.label || name) + " for " + (spec.label || spec.id) + " is invalid.");
+        }
+        if (value && param.pattern) {
+          var regex = new RegExp(param.pattern);
+          if (!regex.test(value)) {
+            throw new Error((param.label || name) + " for " + (spec.label || spec.id) + " is invalid.");
+          }
+        }
+        if (name === "view" && value) {
+          views[value] = true;
+        }
+      });
+    });
+    if (Object.keys(views).length > 1) {
+      throw new Error("Use one ADE view per trigger.");
+    }
   }
 
   function createIssue() {

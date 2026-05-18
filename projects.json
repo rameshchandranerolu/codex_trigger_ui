@@ -55,8 +55,11 @@
       "requirements": [
         "Use the ade-lens skill.",
         "Do not run ade_codex from the GitHub runner; this is already a non-interactive codex exec session.",
+        "Run ADE commands from the normal login home/ADE environment, not a temporary HOME.",
         "For ADE view and transaction setup, prefer non-interactive ADE Lens scripts such as CreateViewAndTxn.sh and RunInView.sh.",
         "If Create View has no transaction name, generate a simple transaction name from the view name and current UTC timestamp.",
+        "Create real ADE views in normal ADE storage so they are visible to ordinary ade lsviews.",
+        "If ADE falls back to /tmp/rnerolu_ade_* or reports sandbox write limits, stop and report failure instead of claiming the view was created.",
         "Bind the work to exactly one ADE view.",
         "Use ADE commands as the source of truth for view and transaction state.",
         "Do not edit source files unless the additional inputs explicitly request source changes."
