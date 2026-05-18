@@ -10,35 +10,98 @@
       repo: "codex_automation",
       queuedLabel: "codex:queued"
     },
+    workflows: [
+      {
+        id: "project",
+        name: "Project Work",
+        kind: "Local Project",
+        description: "Inspect, fix, or test a configured local ALM checkout.",
+        requiresProject: true,
+        operations: [
+          {
+            id: "custom",
+            name: "Custom Project Task",
+            fields: ["details"],
+            requiredFields: ["details"]
+          }
+        ]
+      }
+    ],
     projects: [
       {
         alias: "codex-automation",
         name: "Codex Automation",
         kind: "Automation",
-        description: "Runner and BugDB automation.",
-        context: "Use the codex_automation repository and local runner context."
+        description: "Runner and UI automation.",
+        context: "Use the codex_automation repository."
       }
     ]
   };
 
-  var adeOperationLabels = {
-    "create-view": "Create View",
-    "enter-view": "Enter Existing View",
-    "view-status": "Check View Status",
-    "create-transaction": "Create Transaction",
-    "refresh-view": "Refresh View",
-    "checkin-save": "Check In And Save",
-    "ora-review": "Create OraReview",
-    "merge-request": "Submit Merge Request",
-    "cleanup-view": "Cleanup View",
-    "custom": "Custom ADE Task"
+  var fieldSpecs = {
+    bugNumber: {
+      id: "bugNumberInput",
+      label: "Bug number",
+      placeholder: "39335023",
+      taskLabel: "Bug number"
+    },
+    bugDescription: {
+      id: "bugDescriptionInput",
+      label: "Bug description",
+      type: "textarea",
+      rows: 6,
+      placeholder: "Short BugDB subject/description",
+      taskLabel: "Bug description"
+    },
+    bugComment: {
+      id: "bugCommentInput",
+      label: "Private BugDB comment",
+      type: "textarea",
+      rows: 7,
+      placeholder: "Comment text to add as a hidden/private BugDB comment",
+      taskLabel: "Private BugDB comment"
+    },
+    adeView: {
+      id: "adeViewInput",
+      label: "ADE view name",
+      placeholder: "my_view_name",
+      taskLabel: "ADE view name"
+    },
+    adeBranch: {
+      id: "adeBranchInput",
+      label: "ADE branch",
+      placeholder: "Optional branch name",
+      taskLabel: "ADE branch"
+    },
+    adeTxn: {
+      id: "adeTxnInput",
+      label: "Transaction name",
+      placeholder: "Optional transaction name",
+      taskLabel: "Transaction name"
+    },
+    module: {
+      id: "moduleInput",
+      label: "Product/module boundary",
+      placeholder: "Optional: HCM, SCM, Procurement, fusionapps/hcm/...",
+      taskLabel: "Product/module boundary"
+    },
+    details: {
+      id: "detailsInput",
+      label: "Additional inputs",
+      type: "textarea",
+      rows: 8,
+      placeholder: "Add any details, expected output, files, checks, or constraints",
+      taskLabel: "Additional inputs"
+    }
   };
 
   var state = {
     config: fallbackConfig,
+    workflows: [],
     projects: [],
-    selectedAlias: "",
-    mode: "general"
+    selectedWorkflowId: "",
+    selectedOperationId: "",
+    selectedProjectAlias: ""
   };
 
   var els = {};
@@ -58,7 +121,6 @@
       "projectFilter",
       "projectList",
       "selectedProjectLabel",
-      "modeGrid",
       "ownerInput",
       "repoInput",
       "dynamicFields",
@@ -75,19 +137,7 @@
   }
 
   function bindEvents() {
-    els.projectFilter.addEventListener("input", renderProjects);
-    els.modeGrid.addEventListener("click", function (event) {
-      var button = event.target.closest("[data-mode]");
-      if (!button) {
-        return;
-      }
-      if (button.getAttribute("data-mode") === "ade-operation" && projectByAlias("ade")) {
-        state.selectedAlias = "ade";
-      }
-      setMode(button.getAttribute("data-mode"));
-      renderProjects();
-      updatePreview();
-    });
+    els.projectFilter.addEventListener("input", renderWorkflows);
 
     [
       els.ownerInput,
@@ -120,26 +170,29 @@
       })
       .then(function (config) {
         state.config = config;
+        state.workflows = Array.isArray(config.workflows) ? config.workflows : [];
         state.projects = Array.isArray(config.projects) ? config.projects : [];
+        if (!state.workflows.length) {
+          throw new Error("projects.json must define workflows");
+        }
         if (!els.ownerInput.value) {
           els.ownerInput.value = config.github && config.github.owner ? config.github.owner : "";
         }
         if (!els.repoInput.value) {
           els.repoInput.value = config.github && config.github.repo ? config.github.repo : "";
         }
-        state.selectedAlias = state.projects.length ? state.projects[0].alias : "";
-        renderProjects();
-        renderDynamicFields();
+        selectWorkflow(state.workflows[0].id);
+        renderWorkflows();
         updateRepoLabel();
         updatePreview();
         setStatus("Ready", "ok");
       })
       .catch(function () {
         state.config = fallbackConfig;
+        state.workflows = fallbackConfig.workflows;
         state.projects = fallbackConfig.projects;
-        state.selectedAlias = state.projects[0].alias;
-        renderProjects();
-        renderDynamicFields();
+        selectWorkflow(state.workflows[0].id);
+        renderWorkflows();
         updateRepoLabel();
         updatePreview();
         setStatus("Using fallback", "error");
@@ -156,25 +209,25 @@
     els.statusPill.className = "status-pill" + (className ? " " + className : "");
   }
 
-  function renderProjects() {
+  function renderWorkflows() {
     var query = els.projectFilter.value.trim().toLowerCase();
-    var projects = state.projects.filter(function (project) {
+    var workflows = state.workflows.filter(function (workflow) {
       var haystack = [
-        project.alias,
-        project.name,
-        project.kind,
-        project.description
+        workflow.id,
+        workflow.name,
+        workflow.kind,
+        workflow.description
       ].join(" ").toLowerCase();
       return !query || haystack.indexOf(query) !== -1;
     });
 
-    els.projectCount.textContent = String(projects.length);
+    els.projectCount.textContent = String(workflows.length);
     els.projectList.innerHTML = "";
 
-    projects.forEach(function (project) {
+    workflows.forEach(function (workflow) {
       var button = document.createElement("button");
       button.type = "button";
-      button.className = "project-button" + (project.alias === state.selectedAlias ? " active" : "");
+      button.className = "project-button" + (workflow.id === state.selectedWorkflowId ? " active" : "");
       button.innerHTML = [
         '<div class="project-title">',
         "<strong></strong>",
@@ -182,177 +235,181 @@
         "</div>",
         '<div class="project-desc"></div>'
       ].join("");
-      button.querySelector("strong").textContent = project.name || project.alias;
-      button.querySelector("span").textContent = project.kind || "Project";
-      button.querySelector(".project-desc").textContent = project.description || project.alias;
+      button.querySelector("strong").textContent = workflow.name || workflow.id;
+      button.querySelector("span").textContent = workflow.kind || "Workflow";
+      button.querySelector(".project-desc").textContent = workflow.description || workflow.id;
       button.addEventListener("click", function () {
-        state.selectedAlias = project.alias;
-        if (project.alias === "ade") {
-          setMode("ade-operation");
-        } else if (state.mode === "ade-operation") {
-          setMode("general");
-        }
-        renderProjects();
+        selectWorkflow(workflow.id);
+        renderWorkflows();
         updatePreview();
       });
       els.projectList.appendChild(button);
     });
 
-    updateSelectedProjectLabel();
+    updateSelectedWorkflowLabel();
   }
 
-  function updateSelectedProjectLabel() {
-    var project = selectedProject();
-    if (!project) {
-      els.selectedProjectLabel.textContent = "No project selected";
-      return;
+  function selectWorkflow(workflowId) {
+    state.selectedWorkflowId = workflowId;
+    var operation = firstOperation(selectedWorkflow());
+    state.selectedOperationId = operation ? operation.id : "";
+    if (!state.selectedProjectAlias && state.projects.length) {
+      state.selectedProjectAlias = state.projects[0].alias;
     }
-    els.selectedProjectLabel.textContent = project.alias;
-  }
-
-  function renderDynamicFields() {
-    var html = "";
-    if (state.mode === "general") {
-      html += fieldHtml("detailsInput", "Task details", "textarea", "Describe what Codex should do in the selected project", 8);
-    } else if (state.mode === "ade-operation") {
-      html += adeOperationFieldsHtml();
-    } else if (state.mode === "bug-summary") {
-      html += fieldHtml("bugNumberInput", "Bug number", "input", "39335023");
-      html += fieldHtml("detailsInput", "Summary request", "textarea", "Summarize status, assignee, severity, subject, and latest non-audit comments.", 5);
-    } else if (state.mode === "bug-comment") {
-      html += fieldHtml("bugNumberInput", "Bug number", "input", "39386560");
-      html += fieldHtml("detailsInput", "Private BugDB comment", "textarea", "Comment text to add as a hidden/private BugDB comment.", 7);
-    } else if (state.mode === "bug-create") {
-      html += fieldHtml("detailsInput", "Bug description", "textarea", "Short BugDB subject/description for the new bug.", 7);
-    }
-
-    els.dynamicFields.innerHTML = html;
-    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, select, textarea"), function (element) {
-      element.addEventListener("input", updatePreview);
-      element.addEventListener("change", updatePreview);
-    });
-  }
-
-  function setMode(mode) {
-    state.mode = mode;
-    Array.prototype.forEach.call(els.modeGrid.querySelectorAll(".mode-button"), function (item) {
-      item.classList.toggle("active", item.getAttribute("data-mode") === mode);
-    });
     renderDynamicFields();
   }
 
-  function fieldHtml(id, label, type, placeholder, rows) {
-    if (type === "textarea") {
+  function updateSelectedWorkflowLabel() {
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    if (!workflow) {
+      els.selectedProjectLabel.textContent = "No workflow selected";
+      return;
+    }
+    els.selectedProjectLabel.textContent = operation ? workflow.id + " / " + operation.id : workflow.id;
+  }
+
+  function renderDynamicFields() {
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    var html = "";
+
+    if (!workflow) {
+      els.dynamicFields.innerHTML = "";
+      return;
+    }
+
+    html += operationSelectHtml(workflow);
+    if (workflow.requiresProject) {
+      html += projectSelectHtml();
+    }
+
+    (operationFields(operation) || ["details"]).forEach(function (fieldName) {
+      html += fieldHtml(fieldName);
+    });
+
+    els.dynamicFields.innerHTML = html;
+
+    var operationInput = document.getElementById("operationInput");
+    if (operationInput) {
+      operationInput.addEventListener("change", function () {
+        state.selectedOperationId = operationInput.value;
+        renderDynamicFields();
+        updatePreview();
+      });
+    }
+
+    var projectInput = document.getElementById("projectInput");
+    if (projectInput) {
+      projectInput.addEventListener("change", function () {
+        state.selectedProjectAlias = projectInput.value;
+        updateSelectedWorkflowLabel();
+        updatePreview();
+      });
+    }
+
+    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, textarea"), function (element) {
+      element.addEventListener("input", updatePreview);
+      element.addEventListener("change", updatePreview);
+    });
+    updateSelectedWorkflowLabel();
+  }
+
+  function operationSelectHtml(workflow) {
+    var operations = workflowOperations(workflow);
+    if (!operations.length) {
+      return "";
+    }
+    return [
+      '<label class="field">',
+      "<span>Operation</span>",
+      '<select id="operationInput">',
+      operations.map(function (operation) {
+        var selected = operation.id === state.selectedOperationId ? " selected" : "";
+        return '<option value="' + escapeHtml(operation.id) + '"' + selected + ">" + escapeHtml(operation.name || operation.id) + "</option>";
+      }).join(""),
+      "</select>",
+      "</label>"
+    ].join("");
+  }
+
+  function projectSelectHtml() {
+    return [
+      '<label class="field">',
+      "<span>Project</span>",
+      '<select id="projectInput">',
+      state.projects.map(function (project) {
+        var selected = project.alias === state.selectedProjectAlias ? " selected" : "";
+        return '<option value="' + escapeHtml(project.alias) + '"' + selected + ">" + escapeHtml(project.name || project.alias) + "</option>";
+      }).join(""),
+      "</select>",
+      "</label>"
+    ].join("");
+  }
+
+  function fieldHtml(fieldName) {
+    var spec = fieldSpecs[fieldName] || {
+      id: fieldName + "Input",
+      label: fieldName,
+      placeholder: ""
+    };
+    if (spec.type === "textarea") {
       return [
         '<label class="field">',
-        "<span>" + escapeHtml(label) + "</span>",
-        '<textarea id="' + id + '" rows="' + rows + '" placeholder="' + escapeHtml(placeholder) + '"></textarea>',
+        "<span>" + escapeHtml(spec.label) + "</span>",
+        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '"></textarea>',
         "</label>"
       ].join("");
     }
     return [
       '<label class="field">',
-      "<span>" + escapeHtml(label) + "</span>",
-      '<input id="' + id + '" autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(placeholder) + '">',
+      "<span>" + escapeHtml(spec.label) + "</span>",
+      '<input id="' + spec.id + '" autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '">',
       "</label>"
     ].join("");
   }
 
-  function adeOperationFieldsHtml() {
-    return [
-      '<label class="field">',
-      "<span>ADE operation</span>",
-      '<select id="adeOperationInput">',
-      optionHtml("create-view", "Create View"),
-      optionHtml("enter-view", "Enter Existing View"),
-      optionHtml("view-status", "Check View Status"),
-      optionHtml("create-transaction", "Create Transaction"),
-      optionHtml("refresh-view", "Refresh View"),
-      optionHtml("checkin-save", "Check In And Save"),
-      optionHtml("ora-review", "Create OraReview"),
-      optionHtml("merge-request", "Submit Merge Request"),
-      optionHtml("cleanup-view", "Cleanup View"),
-      optionHtml("custom", "Custom ADE Task"),
-      "</select>",
-      "</label>",
-      '<div class="form-grid">',
-      fieldHtml("adeViewInput", "ADE view name", "input", "my_view_name"),
-      fieldHtml("adeBranchInput", "ADE branch", "input", "Optional branch name"),
-      "</div>",
-      '<div class="form-grid">',
-      fieldHtml("adeTxnInput", "Transaction name", "input", "Optional transaction name"),
-      fieldHtml("bugNumberInput", "Bug number", "input", "Optional BugDB bug number"),
-      "</div>",
-      fieldHtml("moduleInput", "Product/module boundary", "input", "Optional: HCM, SCM, Procurement, fusionapps/hcm/..."),
-      fieldHtml("detailsInput", "Additional inputs", "textarea", "Any extra ADE command intent, files, validation, OraReview, merge, or cleanup notes", 7)
-    ].join("");
-  }
-
-  function optionHtml(value, label) {
-    return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label) + "</option>";
-  }
-
-  function selectedProject() {
-    return projectByAlias(state.selectedAlias);
-  }
-
-  function projectByAlias(alias) {
-    return state.projects.find(function (project) {
-      return project.alias === alias;
+  function selectedWorkflow() {
+    return state.workflows.find(function (workflow) {
+      return workflow.id === state.selectedWorkflowId;
     }) || null;
   }
 
-  function selectedAliasForIssue() {
-    if (state.mode === "ade-operation") {
-      return "ade";
-    }
-    if (state.mode === "bug-create" || state.mode === "bug-summary" || state.mode === "bug-comment") {
-      return "codex-automation";
-    }
-    return state.selectedAlias;
+  function selectedOperation() {
+    var workflow = selectedWorkflow();
+    return workflowOperations(workflow).find(function (operation) {
+      return operation.id === state.selectedOperationId;
+    }) || firstOperation(workflow);
   }
 
-  function selectedContextForIssue() {
-    var project = selectedProject();
-    var parts = [];
-    if (state.mode === "ade-operation") {
-      project = projectByAlias("ade") || project;
-    }
-    if (project && project.context) {
-      parts.push(project.context);
-    }
-    var extra = els.contextInput.value.trim();
-    if (extra) {
-      parts.push(extra);
-    }
-    return parts.join("\n\n");
+  function selectedProject() {
+    return state.projects.find(function (project) {
+      return project.alias === state.selectedProjectAlias;
+    }) || null;
   }
 
-  function detailsValue() {
-    var details = document.getElementById("detailsInput");
-    return details ? details.value.trim() : "";
+  function workflowOperations(workflow) {
+    return workflow && Array.isArray(workflow.operations) ? workflow.operations : [];
   }
 
-  function bugNumberValue() {
-    var bugNumber = document.getElementById("bugNumberInput");
-    return bugNumber ? bugNumber.value.trim() : "";
+  function firstOperation(workflow) {
+    var operations = workflowOperations(workflow);
+    return operations.length ? operations[0] : null;
   }
 
-  function inputValue(id) {
-    var element = document.getElementById(id);
-    return element ? element.value.trim() : "";
-  }
-
-  function adeOperationValue() {
-    return inputValue("adeOperationInput") || "create-view";
-  }
-
-  function adeOperationLabel() {
-    return adeOperationLabels[adeOperationValue()] || "ADE Operation";
+  function operationFields(operation) {
+    return operation && Array.isArray(operation.fields) ? operation.fields : ["details"];
   }
 
   function queuedLabel() {
     return state.config.github && state.config.github.queuedLabel ? state.config.github.queuedLabel : "codex:queued";
+  }
+
+  function inputValue(fieldName) {
+    var spec = fieldSpecs[fieldName];
+    var id = spec ? spec.id : fieldName + "Input";
+    var element = document.getElementById(id);
+    return element ? element.value.trim() : "";
   }
 
   function buildTitle() {
@@ -361,109 +418,99 @@
       return manual;
     }
 
-    var details = detailsValue();
-    var firstLine = details.split(/\r?\n/).filter(Boolean)[0] || "New task";
-    firstLine = firstLine.length > 72 ? firstLine.slice(0, 69).trim() + "..." : firstLine;
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    var primary = "";
+    if (operation && operation.titleField) {
+      primary = inputValue(operation.titleField);
+    }
+    if (!primary && workflow && workflow.requiresProject) {
+      primary = state.selectedProjectAlias;
+    }
+    if (!primary) {
+      primary = inputValue("bugNumber") || inputValue("adeView") || firstLine(inputValue("details")) || "new task";
+    }
+    primary = primary.length > 72 ? primary.slice(0, 69).trim() + "..." : primary;
 
-    if (state.mode === "bug-summary") {
-      return "Bug summary for bug " + (bugNumberValue() || "<BUG_NUMBER>");
-    }
-    if (state.mode === "bug-comment") {
-      return "Add comment to Bug " + (bugNumberValue() || "<BUG_NUMBER>");
-    }
-    if (state.mode === "bug-create") {
-      return "Create BugDB bug";
-    }
-    if (state.mode === "ade-operation") {
-      var view = inputValue("adeViewInput");
-      var suffix = view || details.split(/\r?\n/).filter(Boolean)[0] || "ADE task";
-      suffix = suffix.length > 72 ? suffix.slice(0, 69).trim() + "..." : suffix;
-      return "ADE " + adeOperationLabel() + ": " + suffix;
-    }
-    return "CODEX " + selectedAliasForIssue() + ": " + firstLine;
+    return [
+      workflow && workflow.name ? workflow.name : "Workflow",
+      operation && operation.name ? operation.name : "Task",
+      primary
+    ].join(": ");
   }
 
   function buildTaskText() {
-    var details = detailsValue();
-    var bugNumber = bugNumberValue();
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    var fields = operationFields(operation);
+    var lines = [];
 
-    if (state.mode === "bug-summary") {
-      return [
-        "Use the BugDB MCP tools only for BugDB access.",
-        "Retrieve Bug " + bugNumber + " and provide a concise summary.",
-        details || "Include subject, status, severity, assignee, last updated date, and latest non-audit comments.",
-        "Do not add comments and do not edit local files."
-      ].filter(Boolean).join("\n");
+    if (operation && operation.description) {
+      lines.push(operation.description);
+      lines.push("");
     }
 
-    if (state.mode === "bug-comment") {
-      return [
-        "Use the BugDB MCP tools only for BugDB access.",
-        "Retrieve Bug " + bugNumber + " and summarize its current subject/status.",
-        "Then add this hidden/private BugDB comment to Bug " + bugNumber + ":",
-        "",
-        details,
-        "",
-        "After the BugDB comment is created, reply with the BugDB comment link if available.",
-        "Do not edit local files."
-      ].join("\n");
+    fields.forEach(function (fieldName) {
+      if (fieldName === "details") {
+        return;
+      }
+      var value = inputValue(fieldName);
+      if (value) {
+        lines.push((fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName) + ": " + value);
+      }
+    });
+
+    if (fields.indexOf("details") !== -1) {
+      lines.push("");
+      lines.push("Additional inputs:");
+      lines.push(inputValue("details") || "(none)");
     }
 
-    if (state.mode === "bug-create") {
-      return [
-        "Create a new BugDB bug using the local helper.",
-        "",
-        "Bug description:",
-        details,
-        "",
-        "Reply with the created bug number, tag update result, and any error."
-      ].join("\n");
+    if (workflow && Array.isArray(workflow.requirements) && workflow.requirements.length) {
+      lines.push("");
+      lines.push("Workflow requirements:");
+      workflow.requirements.forEach(function (requirement) {
+        lines.push("- " + requirement);
+      });
     }
 
-    if (state.mode === "ade-operation") {
-      return buildAdeTaskText();
-    }
-
-    return details || "Describe the task here.";
+    return lines.join("\n").trim() + "\n";
   }
 
-  function buildAdeTaskText() {
-    var parts = [
-      "Use the ade-lens skill for this ADE workflow.",
-      "ADE operation: " + adeOperationLabel()
-    ];
-    addIfPresent(parts, "ADE view name", inputValue("adeViewInput"));
-    addIfPresent(parts, "ADE branch", inputValue("adeBranchInput"));
-    addIfPresent(parts, "Transaction name", inputValue("adeTxnInput"));
-    addIfPresent(parts, "Bug number", bugNumberValue());
-    addIfPresent(parts, "Product/module boundary", inputValue("moduleInput"));
-    parts.push("");
-    parts.push("Additional inputs:");
-    parts.push(detailsValue() || "(none)");
-    parts.push("");
-    parts.push("ADE Lens requirements:");
-    parts.push("- Bind the work to exactly one ADE view.");
-    parts.push("- If the view must be created or entered, do that before any source inspection or edits.");
-    parts.push("- Keep any edits inside the active ADE view and use ADE checkout/status commands as the source of truth.");
-    parts.push("- Do not edit source files unless the additional inputs explicitly request source changes.");
-    parts.push("- Reply with active view name, active transaction, command outcomes, and the next recommended step.");
-    return parts.join("\n");
-  }
+  function selectedContextForIssue() {
+    var workflow = selectedWorkflow();
+    var project = selectedProject();
+    var parts = [];
 
-  function addIfPresent(parts, label, value) {
-    if (value) {
-      parts.push(label + ": " + value);
+    if (workflow && workflow.context) {
+      parts.push(workflow.context);
     }
+    if (workflow && workflow.requiresProject && project && project.context) {
+      parts.push(project.context);
+    }
+    if (els.contextInput.value.trim()) {
+      parts.push(els.contextInput.value.trim());
+    }
+
+    return parts.join("\n\n");
   }
 
   function buildIssueBody() {
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
     var context = selectedContextForIssue();
     var lines = [
       "Queue: " + queuedLabel(),
       "",
-      "Project: " + selectedAliasForIssue(),
-      ""
+      "Workflow: " + (workflow ? workflow.id : ""),
+      "Operation: " + (operation ? operation.id : "")
     ];
+
+    if (workflow && workflow.requiresProject) {
+      lines.push("Project: " + state.selectedProjectAlias);
+    }
+
+    lines.push("");
 
     if (context) {
       lines.push("Context:");
@@ -495,27 +542,31 @@
   }
 
   function validateForm() {
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    var requiredFields = operation && Array.isArray(operation.requiredFields) ? operation.requiredFields : [];
+
     if (!els.ownerInput.value.trim()) {
       throw new Error("Enter the GitHub owner.");
     }
     if (!els.repoInput.value.trim()) {
       throw new Error("Enter the GitHub repo.");
     }
-    if (!selectedAliasForIssue()) {
+    if (!workflow) {
+      throw new Error("Select a workflow.");
+    }
+    if (!operation) {
+      throw new Error("Select an operation.");
+    }
+    if (workflow.requiresProject && !state.selectedProjectAlias) {
       throw new Error("Select a project.");
     }
-    if ((state.mode === "bug-summary" || state.mode === "bug-comment") && !bugNumberValue()) {
-      throw new Error("Enter the BugDB bug number.");
-    }
-    if (state.mode === "ade-operation" && !inputValue("adeViewInput") && adeOperationValue() !== "custom") {
-      throw new Error("Enter the ADE view name, or use Custom ADE Task for a broader request.");
-    }
-    if (state.mode === "ade-operation" && adeOperationValue() === "custom" && !detailsValue()) {
-      throw new Error("Enter the custom ADE task details.");
-    }
-    if (!detailsValue() && state.mode !== "bug-summary" && state.mode !== "ade-operation") {
-      throw new Error("Enter task details.");
-    }
+
+    requiredFields.forEach(function (fieldName) {
+      if (!inputValue(fieldName)) {
+        throw new Error("Enter " + (fieldSpecs[fieldName] ? fieldSpecs[fieldName].label : fieldName) + ".");
+      }
+    });
   }
 
   function createIssue() {
@@ -537,7 +588,7 @@
     }
 
     setStatus("Opened", "ok");
-    showResult("GitHub will open with the issue prefilled. Submit it there and confirm the " + escapeHtml(queuedLabel()) + " label is selected.", false);
+    showResult("GitHub will open with the issue prefilled. Submit it there.", false);
     window.location.href = buildNewIssueUrl(owner, repo, title, body);
   }
 
@@ -555,6 +606,10 @@
     els.resultRow.innerHTML = html;
     els.resultRow.style.borderColor = isError ? "#d6a1a1" : "";
     els.resultRow.style.color = isError ? "#a33131" : "";
+  }
+
+  function firstLine(value) {
+    return String(value || "").split(/\r?\n/).filter(Boolean)[0] || "";
   }
 
   function escapeHtml(value) {

@@ -17,14 +17,14 @@
       </section>
 
       <section class="workspace" aria-label="Trigger builder">
-        <aside class="project-pane" aria-label="Project selection">
+        <aside class="project-pane" aria-label="Workflow selection">
           <div class="pane-heading">
-            <h2>Projects</h2>
+            <h2>Workflows</h2>
             <span id="projectCount">0</span>
           </div>
           <label class="field">
             <span>Filter</span>
-            <input id="projectFilter" type="search" autocomplete="off" placeholder="Search projects">
+            <input id="projectFilter" type="search" autocomplete="off" placeholder="Search workflows">
           </label>
           <div class="project-list" id="projectList"></div>
         </aside>
@@ -32,15 +32,7 @@
         <section class="builder-pane" aria-label="Issue details">
           <div class="section-title">
             <h2>Trigger Details</h2>
-            <span id="selectedProjectLabel">No project selected</span>
-          </div>
-
-          <div class="mode-grid" id="modeGrid" role="radiogroup" aria-label="Task type">
-            <button class="mode-button active" type="button" data-mode="general">Project Task</button>
-            <button class="mode-button" type="button" data-mode="ade-operation">ADE Operation</button>
-            <button class="mode-button" type="button" data-mode="bug-summary">Bug Summary</button>
-            <button class="mode-button" type="button" data-mode="bug-comment">Bug Comment</button>
-            <button class="mode-button" type="button" data-mode="bug-create">Create Bug</button>
+            <span id="selectedProjectLabel">No workflow selected</span>
           </div>
 
           <div class="form-grid">
@@ -57,13 +49,13 @@
           <div id="dynamicFields" class="dynamic-fields"></div>
 
           <label class="field">
-            <span>Extra project context</span>
-            <textarea id="contextInput" rows="4" placeholder="Optional context Codex should keep in mind for this project or task"></textarea>
+            <span>Extra context</span>
+            <textarea id="contextInput" rows="4" placeholder="Optional context Codex should keep in mind for this workflow or task"></textarea>
           </label>
 
           <label class="field">
             <span>Issue title</span>
-            <input id="titleInput" autocomplete="off" placeholder="Auto-filled from the selected mode">
+            <input id="titleInput" autocomplete="off" placeholder="Auto-filled from the selected workflow">
           </label>
 
           <div class="actions">
