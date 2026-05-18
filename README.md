@@ -1,6 +1,6 @@
 # Codex Trigger UI
 
-Static browser UI for creating Codex trigger issues.
+Static browser UI for composing Codex trigger issues.
 
 This public UI repo should contain only these files:
 
@@ -13,13 +13,13 @@ projects.json
 README.md
 ```
 
-The page creates issues in the private `codex_automation` trigger repository.
-It does not contain the VM runner, BugDB helpers, `config.json`, OAuth tokens,
-or local ALM paths.
+The page opens GitHub's new-issue screen with the title, body, and queued label
+prefilled for the private `codex_automation` trigger repository. The user signs
+in to GitHub normally and submits the issue there.
 
-Use a fine-grained GitHub token scoped only to the private trigger repository,
-with Issues read/write permission. If you use "Remember token", it is stored
-only in that browser's local storage.
+It does not contain the VM runner, BugDB helpers, `config.json`, OAuth tokens,
+GitHub personal access tokens, or local ALM paths. The browser UI does not call
+the GitHub API and does not ask users to paste a token.
 
 Before making this repo public, review `projects.json` and keep project names,
 aliases, and descriptions non-sensitive.

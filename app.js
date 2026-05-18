@@ -1,7 +1,6 @@
 (function () {
   "use strict";
 
-  var STORAGE_TOKEN = "codexTrigger.githubToken";
   var STORAGE_OWNER = "codexTrigger.owner";
   var STORAGE_REPO = "codexTrigger.repo";
 
@@ -49,8 +48,6 @@
       "modeGrid",
       "ownerInput",
       "repoInput",
-      "tokenInput",
-      "rememberToken",
       "dynamicFields",
       "contextInput",
       "titleInput",
@@ -82,8 +79,6 @@
     [
       els.ownerInput,
       els.repoInput,
-      els.tokenInput,
-      els.rememberToken,
       els.contextInput,
       els.titleInput
     ].forEach(function (element) {
@@ -96,13 +91,9 @@
   }
 
   function loadLocalSettings() {
+    localStorage.removeItem("codexTrigger.githubToken");
     els.ownerInput.value = localStorage.getItem(STORAGE_OWNER) || "";
     els.repoInput.value = localStorage.getItem(STORAGE_REPO) || "";
-    var savedToken = localStorage.getItem(STORAGE_TOKEN) || "";
-    if (savedToken) {
-      els.tokenInput.value = savedToken;
-      els.rememberToken.checked = true;
-    }
   }
 
   function loadConfig() {
@@ -374,11 +365,6 @@
   function saveLocalSettings() {
     localStorage.setItem(STORAGE_OWNER, els.ownerInput.value.trim());
     localStorage.setItem(STORAGE_REPO, els.repoInput.value.trim());
-    if (els.rememberToken.checked && els.tokenInput.value) {
-      localStorage.setItem(STORAGE_TOKEN, els.tokenInput.value);
-    } else {
-      localStorage.removeItem(STORAGE_TOKEN);
-    }
   }
 
   function validateForm() {
@@ -387,9 +373,6 @@
     }
     if (!els.repoInput.value.trim()) {
       throw new Error("Enter the GitHub repo.");
-    }
-    if (!els.tokenInput.value.trim()) {
-      throw new Error("Enter a GitHub token with Issues read/write access.");
     }
     if (!selectedAliasForIssue()) {
       throw new Error("Select a project.");
@@ -407,7 +390,6 @@
     var repo;
     var title;
     var body;
-    var token;
 
     try {
       validateForm();
@@ -415,50 +397,23 @@
       repo = els.repoInput.value.trim();
       title = buildTitle();
       body = buildIssueBody();
-      token = els.tokenInput.value.trim();
     } catch (error) {
       showResult(error.message, true);
       setStatus("Needs input", "error");
       return;
     }
 
-    setStatus("Creating", "busy");
-    els.submitButton.disabled = true;
-    showResult("Creating GitHub issue...", false);
+    setStatus("Opened", "ok");
+    showResult("GitHub will open with the issue prefilled. Submit it there and confirm the " + escapeHtml(queuedLabel()) + " label is selected.", false);
+    window.location.href = buildNewIssueUrl(owner, repo, title, body);
+  }
 
-    fetch("https://api.github.com/repos/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues", {
-      method: "POST",
-      headers: {
-        "Accept": "application/vnd.github+json",
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/json",
-        "X-GitHub-Api-Version": "2022-11-28"
-      },
-      body: JSON.stringify({
-        title: title,
-        body: body,
-        labels: [queuedLabel()]
-      })
-    })
-      .then(function (response) {
-        return response.json().then(function (payload) {
-          if (!response.ok) {
-            throw new Error(payload && payload.message ? payload.message : "GitHub API error " + response.status);
-          }
-          return payload;
-        });
-      })
-      .then(function (issue) {
-        setStatus("Created", "ok");
-        showResult('Created issue <a href="' + issue.html_url + '" target="_blank" rel="noopener">#' + issue.number + "</a>. The VM runner will pick it up on the next poll.", false);
-      })
-      .catch(function (error) {
-        setStatus("Failed", "error");
-        showResult(error.message, true);
-      })
-      .finally(function () {
-        els.submitButton.disabled = false;
-      });
+  function buildNewIssueUrl(owner, repo, title, body) {
+    var params = new URLSearchParams();
+    params.set("title", title);
+    params.set("body", body);
+    params.set("labels", queuedLabel());
+    return "https://github.com/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues/new?" + params.toString();
   }
 
   function showResult(html, isError) {
