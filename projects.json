@@ -1,0 +1,37 @@
+{
+  "github": {
+    "owner": "rameshchandranerolu",
+    "repo": "codex_automation",
+    "queuedLabel": "codex:queued"
+  },
+  "projects": [
+    {
+      "alias": "codex-automation",
+      "name": "Codex Automation",
+      "kind": "Automation",
+      "description": "Runner, GitHub trigger queue, and BugDB helper scripts.",
+      "context": "Use the codex_automation repository. This project owns the GitHub issue runner, config files, BugDB create helper, and trigger UI."
+    },
+    {
+      "alias": "employment-process-ui",
+      "name": "Employment Process UI",
+      "kind": "ALM Project",
+      "description": "Employment process UI local ALM checkout.",
+      "context": "Use the employment-process-ui local checkout. Treat this as the selected ALM project context for code inspection, fixes, tests, and VBCS/Fusion HCM UI work."
+    },
+    {
+      "alias": "employment-other-ui",
+      "name": "Employment Other UI",
+      "kind": "ALM Project",
+      "description": "Employment other UI local ALM checkout.",
+      "context": "Use the employment-other-ui local checkout. Treat this as the selected ALM project context for code inspection, fixes, tests, and VBCS/Fusion HCM UI work."
+    },
+    {
+      "alias": "employment-all",
+      "name": "Employment All",
+      "kind": "Project Group",
+      "description": "Parent folder for multiple employment UI projects.",
+      "context": "Use the employment-all aggregate context when the task needs to compare or search across employment-process-ui and employment-other-ui."
+    }
+  ]
+}

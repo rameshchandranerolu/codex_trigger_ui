@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Codex Trigger Console</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="topbar" aria-label="Console header">
+        <div>
+          <h1>Codex Trigger Console</h1>
+          <p id="repoLabel">GitHub issue queue</p>
+        </div>
+        <div class="status-pill" id="statusPill">Ready</div>
+      </section>
+
+      <section class="workspace" aria-label="Trigger builder">
+        <aside class="project-pane" aria-label="Project selection">
+          <div class="pane-heading">
+            <h2>Projects</h2>
+            <span id="projectCount">0</span>
+          </div>
+          <label class="field">
+            <span>Filter</span>
+            <input id="projectFilter" type="search" autocomplete="off" placeholder="Search projects">
+          </label>
+          <div class="project-list" id="projectList"></div>
+        </aside>
+
+        <section class="builder-pane" aria-label="Issue details">
+          <div class="section-title">
+            <h2>Trigger Details</h2>
+            <span id="selectedProjectLabel">No project selected</span>
+          </div>
+
+          <div class="mode-grid" id="modeGrid" role="radiogroup" aria-label="Task type">
+            <button class="mode-button active" type="button" data-mode="general">Project Task</button>
+            <button class="mode-button" type="button" data-mode="bug-summary">Bug Summary</button>
+            <button class="mode-button" type="button" data-mode="bug-comment">Bug Comment</button>
+            <button class="mode-button" type="button" data-mode="bug-create">Create Bug</button>
+          </div>
+
+          <div class="form-grid">
+            <label class="field">
+              <span>GitHub owner</span>
+              <input id="ownerInput" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>GitHub repo</span>
+              <input id="repoInput" autocomplete="off" spellcheck="false">
+            </label>
+          </div>
+
+          <label class="field">
+            <span>GitHub token</span>
+            <input id="tokenInput" type="password" autocomplete="off" spellcheck="false" placeholder="Fine-grained token with Issues read/write">
+          </label>
+
+          <label class="check-row">
+            <input id="rememberToken" type="checkbox">
+            <span>Remember token in this browser only</span>
+          </label>
+
+          <div id="dynamicFields" class="dynamic-fields"></div>
+
+          <label class="field">
+            <span>Extra project context</span>
+            <textarea id="contextInput" rows="4" placeholder="Optional context Codex should keep in mind for this project or task"></textarea>
+          </label>
+
+          <label class="field">
+            <span>Issue title</span>
+            <input id="titleInput" autocomplete="off" placeholder="Auto-filled from the selected mode">
+          </label>
+
+          <div class="actions">
+            <button id="previewButton" class="secondary-button" type="button">Refresh Preview</button>
+            <button id="submitButton" class="primary-button" type="button">Create Trigger Issue</button>
+          </div>
+
+          <div class="result-row" id="resultRow" hidden></div>
+        </section>
+
+        <aside class="preview-pane" aria-label="Issue preview">
+          <div class="section-title">
+            <h2>Preview</h2>
+            <span id="labelPreview">codex:queued</span>
+          </div>
+          <pre id="issuePreview"></pre>
+        </aside>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
