@@ -26,3 +26,8 @@ the GitHub API and does not ask users to paste a token.
 
 Before making this repo public, review `projects.json` and keep project names,
 aliases, and descriptions non-sensitive.
+
+The ADE project button generates `Project: ade` issues with friendly operation
+names such as Create View, Enter Existing View, Create Transaction, OraReview,
+Merge Request, and Cleanup View. Keep the private runner repo's `config.json`
+mapped with an `ade` project alias before using that button.

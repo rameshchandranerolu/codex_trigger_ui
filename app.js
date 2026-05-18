@@ -21,6 +21,19 @@
     ]
   };
 
+  var adeOperationLabels = {
+    "create-view": "Create View",
+    "enter-view": "Enter Existing View",
+    "view-status": "Check View Status",
+    "create-transaction": "Create Transaction",
+    "refresh-view": "Refresh View",
+    "checkin-save": "Check In And Save",
+    "ora-review": "Create OraReview",
+    "merge-request": "Submit Merge Request",
+    "cleanup-view": "Cleanup View",
+    "custom": "Custom ADE Task"
+  };
+
   var state = {
     config: fallbackConfig,
     projects: [],
@@ -68,11 +81,11 @@
       if (!button) {
         return;
       }
-      state.mode = button.getAttribute("data-mode");
-      Array.prototype.forEach.call(els.modeGrid.querySelectorAll(".mode-button"), function (item) {
-        item.classList.toggle("active", item === button);
-      });
-      renderDynamicFields();
+      if (button.getAttribute("data-mode") === "ade-operation" && projectByAlias("ade")) {
+        state.selectedAlias = "ade";
+      }
+      setMode(button.getAttribute("data-mode"));
+      renderProjects();
       updatePreview();
     });
 
@@ -174,6 +187,11 @@
       button.querySelector(".project-desc").textContent = project.description || project.alias;
       button.addEventListener("click", function () {
         state.selectedAlias = project.alias;
+        if (project.alias === "ade") {
+          setMode("ade-operation");
+        } else if (state.mode === "ade-operation") {
+          setMode("general");
+        }
         renderProjects();
         updatePreview();
       });
@@ -196,6 +214,8 @@
     var html = "";
     if (state.mode === "general") {
       html += fieldHtml("detailsInput", "Task details", "textarea", "Describe what Codex should do in the selected project", 8);
+    } else if (state.mode === "ade-operation") {
+      html += adeOperationFieldsHtml();
     } else if (state.mode === "bug-summary") {
       html += fieldHtml("bugNumberInput", "Bug number", "input", "39335023");
       html += fieldHtml("detailsInput", "Summary request", "textarea", "Summarize status, assignee, severity, subject, and latest non-audit comments.", 5);
@@ -207,9 +227,18 @@
     }
 
     els.dynamicFields.innerHTML = html;
-    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, textarea"), function (element) {
+    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, select, textarea"), function (element) {
       element.addEventListener("input", updatePreview);
+      element.addEventListener("change", updatePreview);
     });
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    Array.prototype.forEach.call(els.modeGrid.querySelectorAll(".mode-button"), function (item) {
+      item.classList.toggle("active", item.getAttribute("data-mode") === mode);
+    });
+    renderDynamicFields();
   }
 
   function fieldHtml(id, label, type, placeholder, rows) {
@@ -229,13 +258,54 @@
     ].join("");
   }
 
+  function adeOperationFieldsHtml() {
+    return [
+      '<label class="field">',
+      "<span>ADE operation</span>",
+      '<select id="adeOperationInput">',
+      optionHtml("create-view", "Create View"),
+      optionHtml("enter-view", "Enter Existing View"),
+      optionHtml("view-status", "Check View Status"),
+      optionHtml("create-transaction", "Create Transaction"),
+      optionHtml("refresh-view", "Refresh View"),
+      optionHtml("checkin-save", "Check In And Save"),
+      optionHtml("ora-review", "Create OraReview"),
+      optionHtml("merge-request", "Submit Merge Request"),
+      optionHtml("cleanup-view", "Cleanup View"),
+      optionHtml("custom", "Custom ADE Task"),
+      "</select>",
+      "</label>",
+      '<div class="form-grid">',
+      fieldHtml("adeViewInput", "ADE view name", "input", "my_view_name"),
+      fieldHtml("adeBranchInput", "ADE branch", "input", "Optional branch name"),
+      "</div>",
+      '<div class="form-grid">',
+      fieldHtml("adeTxnInput", "Transaction name", "input", "Optional transaction name"),
+      fieldHtml("bugNumberInput", "Bug number", "input", "Optional BugDB bug number"),
+      "</div>",
+      fieldHtml("moduleInput", "Product/module boundary", "input", "Optional: HCM, SCM, Procurement, fusionapps/hcm/..."),
+      fieldHtml("detailsInput", "Additional inputs", "textarea", "Any extra ADE command intent, files, validation, OraReview, merge, or cleanup notes", 7)
+    ].join("");
+  }
+
+  function optionHtml(value, label) {
+    return '<option value="' + escapeHtml(value) + '">' + escapeHtml(label) + "</option>";
+  }
+
   function selectedProject() {
+    return projectByAlias(state.selectedAlias);
+  }
+
+  function projectByAlias(alias) {
     return state.projects.find(function (project) {
-      return project.alias === state.selectedAlias;
+      return project.alias === alias;
     }) || null;
   }
 
   function selectedAliasForIssue() {
+    if (state.mode === "ade-operation") {
+      return "ade";
+    }
     if (state.mode === "bug-create" || state.mode === "bug-summary" || state.mode === "bug-comment") {
       return "codex-automation";
     }
@@ -245,6 +315,9 @@
   function selectedContextForIssue() {
     var project = selectedProject();
     var parts = [];
+    if (state.mode === "ade-operation") {
+      project = projectByAlias("ade") || project;
+    }
     if (project && project.context) {
       parts.push(project.context);
     }
@@ -263,6 +336,19 @@
   function bugNumberValue() {
     var bugNumber = document.getElementById("bugNumberInput");
     return bugNumber ? bugNumber.value.trim() : "";
+  }
+
+  function inputValue(id) {
+    var element = document.getElementById(id);
+    return element ? element.value.trim() : "";
+  }
+
+  function adeOperationValue() {
+    return inputValue("adeOperationInput") || "create-view";
+  }
+
+  function adeOperationLabel() {
+    return adeOperationLabels[adeOperationValue()] || "ADE Operation";
   }
 
   function queuedLabel() {
@@ -287,6 +373,12 @@
     }
     if (state.mode === "bug-create") {
       return "Create BugDB bug";
+    }
+    if (state.mode === "ade-operation") {
+      var view = inputValue("adeViewInput");
+      var suffix = view || details.split(/\r?\n/).filter(Boolean)[0] || "ADE task";
+      suffix = suffix.length > 72 ? suffix.slice(0, 69).trim() + "..." : suffix;
+      return "ADE " + adeOperationLabel() + ": " + suffix;
     }
     return "CODEX " + selectedAliasForIssue() + ": " + firstLine;
   }
@@ -328,7 +420,40 @@
       ].join("\n");
     }
 
+    if (state.mode === "ade-operation") {
+      return buildAdeTaskText();
+    }
+
     return details || "Describe the task here.";
+  }
+
+  function buildAdeTaskText() {
+    var parts = [
+      "Use the ade-lens skill for this ADE workflow.",
+      "ADE operation: " + adeOperationLabel()
+    ];
+    addIfPresent(parts, "ADE view name", inputValue("adeViewInput"));
+    addIfPresent(parts, "ADE branch", inputValue("adeBranchInput"));
+    addIfPresent(parts, "Transaction name", inputValue("adeTxnInput"));
+    addIfPresent(parts, "Bug number", bugNumberValue());
+    addIfPresent(parts, "Product/module boundary", inputValue("moduleInput"));
+    parts.push("");
+    parts.push("Additional inputs:");
+    parts.push(detailsValue() || "(none)");
+    parts.push("");
+    parts.push("ADE Lens requirements:");
+    parts.push("- Bind the work to exactly one ADE view.");
+    parts.push("- If the view must be created or entered, do that before any source inspection or edits.");
+    parts.push("- Keep any edits inside the active ADE view and use ADE checkout/status commands as the source of truth.");
+    parts.push("- Do not edit source files unless the additional inputs explicitly request source changes.");
+    parts.push("- Reply with active view name, active transaction, command outcomes, and the next recommended step.");
+    return parts.join("\n");
+  }
+
+  function addIfPresent(parts, label, value) {
+    if (value) {
+      parts.push(label + ": " + value);
+    }
   }
 
   function buildIssueBody() {
@@ -382,7 +507,13 @@
     if ((state.mode === "bug-summary" || state.mode === "bug-comment") && !bugNumberValue()) {
       throw new Error("Enter the BugDB bug number.");
     }
-    if (!detailsValue() && state.mode !== "bug-summary") {
+    if (state.mode === "ade-operation" && !inputValue("adeViewInput") && adeOperationValue() !== "custom") {
+      throw new Error("Enter the ADE view name, or use Custom ADE Task for a broader request.");
+    }
+    if (state.mode === "ade-operation" && adeOperationValue() === "custom" && !detailsValue()) {
+      throw new Error("Enter the custom ADE task details.");
+    }
+    if (!detailsValue() && state.mode !== "bug-summary" && state.mode !== "ade-operation") {
       throw new Error("Enter task details.");
     }
   }

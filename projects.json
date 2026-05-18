@@ -13,6 +13,13 @@
       "context": "Use the codex_automation repository. This project owns the GitHub issue runner, config files, BugDB create helper, and trigger UI."
     },
     {
+      "alias": "ade",
+      "name": "ADE",
+      "kind": "ADE Skill",
+      "description": "ADE view, transaction, OraReview, merge request, and cleanup workflows.",
+      "context": "Use the ade-lens skill for ADE operations. Treat the request as an ADE workflow trigger, bind to exactly one ADE view, and report the active view, active transaction, command outcomes, and next step."
+    },
+    {
       "alias": "employment-process-ui",
       "name": "Employment Process UI",
       "kind": "ALM Project",
