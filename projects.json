@@ -51,9 +51,14 @@
       "name": "ADE",
       "kind": "ADE Skill",
       "description": "ADE view, transaction, OraReview, merge request, and cleanup workflows.",
-      "context": "ADE-only workflow. Use the ade-lens skill, bind to exactly one ADE view, and report active view, active transaction, command outcomes, and next step.",
+      "context": "ADE-only workflow. Use the ade-lens, orareview, and mergereq skills where relevant. Use CodeSearch, OraReview, and Mergereq MCP tools for read-only lookup and report active view, active transaction, command outcomes, and next step.",
       "requirements": [
         "Use the ade-lens skill.",
+        "Use the orareview skill for OraReview upload, status, close, and reviewer-comment workflows.",
+        "Use the mergereq skill for mergereq submission, quality, property, and post-approval merge workflows.",
+        "Use CodeSearch MCP for ADE/OpenGrok code searches.",
+        "Use OraReview MCP tools for read-only review metadata, reviewer status, comments, and merge-check details.",
+        "Use Mergereq MCP tools for read-only report-card status and current-transaction quality previews.",
         "Do not run ade_codex from the GitHub runner; this is already a non-interactive codex exec session.",
         "Run ADE commands from the normal login home/ADE environment, not a temporary HOME.",
         "For ADE view and transaction setup, prefer non-interactive ADE Lens scripts such as CreateViewAndTxn.sh and RunInView.sh.",
@@ -104,6 +109,14 @@
           "fields": ["adeView", "adeBranch", "details"],
           "requiredFields": ["adeView"],
           "titleField": "adeView"
+        },
+        {
+          "id": "code-search",
+          "name": "CodeSearch",
+          "description": "Search ADE/OpenGrok through the CodeSearch MCP.",
+          "fields": ["adeView", "adeBranch", "module", "details"],
+          "requiredFields": ["details"],
+          "titleField": "details"
         },
         {
           "id": "checkin-save",
@@ -197,7 +210,7 @@
       "description": "Run configured command intents or request approval for a natural-language command plan.",
       "requiresProject": true,
       "projectAliases": ["codex-automation", "ade", "employment-process-ui", "employment-other-ui", "employment-all"],
-      "context": "Custom command workflow. Use the selected run context and the validated command catalog. Catalog commands are approved to run in order. For natural-language state-changing requests without catalog commands, propose a numbered command sequence first and ask for approval with CODEX_TRIGGER_STATUS: needs-input. After approval arrives in a Codex follow-up comment, continue in the same session and run the approved sequence. Use ADE Lens only for ADE command IDs or ADE-specific task content.",
+      "context": "Custom command workflow. Use the selected run context and the validated command catalog. Catalog commands are approved to run in order. For natural-language custom tasks, infer the relevant skill or MCP from the request text, project context, and available ADE or transaction details. Use read-only MCP tools directly for information gathering, status, report-card, review-comment, and code-search questions. For natural-language state-changing requests without catalog commands, propose a numbered command sequence first and ask for approval with CODEX_TRIGGER_STATUS: needs-input. After approval arrives in a follow-up comment and the issue is tagged followup-codex, continue in the same session and run the approved sequence.",
       "operations": [
         {
           "id": "run",

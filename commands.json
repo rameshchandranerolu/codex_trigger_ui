@@ -71,6 +71,12 @@
       "workflow": "ade",
       "order": 70,
       "template": "orareview create view={{view}} bug={{bug}} reviewers={{reviewers}}",
+      "skill": "orareview",
+      "mcp": "orareview",
+      "instructions": [
+        "Use the orareview skill for upload/update workflow and required preflight checks.",
+        "Use OraReview MCP tools for read-only review metadata, reviewer status, comments, and merge-check details when helpful."
+      ],
       "parameters": [
         { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
         { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
@@ -83,6 +89,12 @@
       "workflow": "ade",
       "order": 80,
       "template": "mergereq submit view={{view}} bug={{bug}} mode={{mode}} manager={{manager}} release={{release}} cc={{cc}}",
+      "skill": "mergereq",
+      "mcp": "mergereq",
+      "instructions": [
+        "Use the mergereq skill for submission workflow, property checks, and command generation.",
+        "Use Mergereq MCP tools for report-card details and current-transaction quality previews before submitting when available."
+      ],
       "parameters": [
         { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
         { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
@@ -90,6 +102,29 @@
         { "name": "manager", "label": "Manager email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
         { "name": "release", "label": "Release email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
         { "name": "cc", "label": "CC emails", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
+      ]
+    },
+    {
+      "id": "codesearch.search",
+      "label": "CodeSearch",
+      "workflows": ["ade", "custom"],
+      "order": 90,
+      "template": "codesearch search query={{query}} full={{full}} definition={{definition}} symbol={{symbol}} path={{path}} type={{type}} ade_label={{ade_label}} ade_label_series={{ade_label_series}}",
+      "mcp": "codesearch",
+      "instructions": [
+        "Use the CodeSearch MCP search tool for ADE/OpenGrok searches and summarize contextual snippets.",
+        "Provide ade_label or ade_label_series when not running inside the target ADE view.",
+        "Map query to the most appropriate CodeSearch field, usually full unless symbol or definition is more specific."
+      ],
+      "parameters": [
+        { "name": "query", "label": "Search query", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=()#*\\n-]+$" },
+        { "name": "full", "label": "Full text", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=()#*\\n-]+$" },
+        { "name": "definition", "label": "Definition", "required": false, "pattern": "^[A-Za-z0-9_.:@+=#*-]+$" },
+        { "name": "symbol", "label": "Symbol", "required": false, "pattern": "^[A-Za-z0-9_.:@+=#*-]+$" },
+        { "name": "path", "label": "Path", "required": false, "pattern": "^[A-Za-z0-9_./:@+=*,-]+$" },
+        { "name": "type", "label": "File type", "required": false, "pattern": "^[A-Za-z0-9_,.+-]+$" },
+        { "name": "ade_label", "label": "ADE label", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" },
+        { "name": "ade_label_series", "label": "ADE label series", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
       ]
     },
     {
@@ -110,23 +145,6 @@
       "template": "run project tests command={{test_command}}",
       "parameters": [
         { "name": "test_command", "label": "Test command", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$" }
-      ]
-    },
-    {
-      "id": "custom.request",
-      "label": "Custom Request",
-      "workflow": "custom",
-      "order": 900,
-      "template": "custom request: {{request}}",
-      "parameters": [
-        {
-          "name": "request",
-          "label": "Request",
-          "type": "textarea",
-          "rows": 4,
-          "required": true,
-          "pattern": "^[A-Za-z0-9_ ./,:@+=()\\n-]+$"
-        }
       ]
     }
   ]
