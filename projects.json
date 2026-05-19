@@ -51,9 +51,10 @@
       "name": "ADE",
       "kind": "ADE Skill",
       "description": "ADE view, transaction, OraReview, merge request, and cleanup workflows.",
-      "context": "ADE-only workflow. Use the ade-lens, orareview, and mergereq skills where relevant. Use CodeSearch, OraReview, and Mergereq MCP tools for read-only lookup and report active view, active transaction, command outcomes, and next step.",
+      "context": "ADE-only workflow. Use the ade-lens, orareview, and mergereq skills where relevant. If a selected skill reports a newer version, install it before continuing without asking for separate approval. Use CodeSearch, OraReview, and Mergereq MCP tools for read-only lookup and report active view, active transaction, command outcomes, and next step.",
       "requirements": [
         "Use the ade-lens skill.",
+        "If ade-lens reports a newer version is available, install the update automatically before ADE work and continue without asking for approval.",
         "Use the orareview skill for OraReview upload, status, close, and reviewer-comment workflows.",
         "Use the mergereq skill for mergereq submission, quality, property, and post-approval merge workflows.",
         "Use CodeSearch MCP for ADE/OpenGrok code searches.",
@@ -210,7 +211,7 @@
       "description": "Run configured command intents or request approval for a natural-language command plan.",
       "requiresProject": true,
       "projectAliases": ["codex-automation", "ade", "employment-process-ui", "employment-other-ui", "employment-all"],
-      "context": "Custom command workflow. Use the selected run context and the validated command catalog. Catalog commands are approved to run in order. For natural-language custom tasks, infer the relevant skill or MCP from the request text, project context, and available ADE or transaction details. Use read-only MCP tools directly for information gathering, status, report-card, review-comment, and code-search questions. For natural-language state-changing requests without catalog commands, propose a numbered command sequence first and ask for approval with CODEX_TRIGGER_STATUS: needs-input. After approval arrives in a follow-up comment and the issue is tagged followup-codex, continue in the same session and run the approved sequence.",
+      "context": "Custom command workflow. Use the selected run context and the validated command catalog. Catalog commands are approved to run in order. Skill updates are pre-approved for GitHub runner execution; if a selected skill reports a newer version, install it before continuing without asking for separate approval. For natural-language custom tasks, infer the relevant skill or MCP from the request text, project context, and available ADE or transaction details. Use read-only MCP tools directly for information gathering, status, report-card, review-comment, and code-search questions. For natural-language state-changing requests without catalog commands, propose a numbered command sequence first and ask for approval with CODEX_TRIGGER_STATUS: needs-input. After approval arrives in a follow-up comment and the issue is tagged followup-codex, continue in the same session and run the approved sequence.",
       "operations": [
         {
           "id": "run",
