@@ -3,12 +3,27 @@
 
   var STORAGE_OWNER = "codexTrigger.owner";
   var STORAGE_REPO = "codexTrigger.repo";
+  var STORAGE_RUNNER = "codexTrigger.runner";
 
   var fallbackConfig = {
     github: {
       owner: "rameshchandranerolu",
       repo: "codex_automation",
-      queuedLabel: "codex:queued"
+      queuedLabel: "codex:queued",
+      runners: [
+        {
+          id: "current",
+          name: "Current VM",
+          owner: "rameshchandranerolu",
+          repo: "codex_automation"
+        },
+        {
+          id: "mumbai619658",
+          name: "Mumbai 619658",
+          owner: "rameshchandranerolu",
+          repo: "codex_automation_mumbai619658"
+        }
+      ]
     },
     workflows: [
       {
@@ -102,11 +117,13 @@
     workflows: [],
     projects: [],
     commands: [],
+    runners: [],
     selectedCommands: [],
     commandSerial: 0,
     selectedWorkflowId: "",
     selectedOperationId: "",
-    selectedProjectAlias: ""
+    selectedProjectAlias: "",
+    selectedRunnerId: ""
   };
 
   var els = {};
@@ -126,6 +143,7 @@
       "projectFilter",
       "projectList",
       "selectedProjectLabel",
+      "runnerSelect",
       "ownerInput",
       "repoInput",
       "dynamicFields",
@@ -144,6 +162,13 @@
 
   function bindEvents() {
     els.projectFilter.addEventListener("input", renderWorkflows);
+    if (els.runnerSelect) {
+      els.runnerSelect.addEventListener("change", function () {
+        state.selectedRunnerId = els.runnerSelect.value;
+        applySelectedRunner(true);
+        updatePreview();
+      });
+    }
 
     [
       els.ownerInput,
@@ -161,6 +186,7 @@
 
   function loadLocalSettings() {
     localStorage.removeItem("codexTrigger.githubToken");
+    state.selectedRunnerId = localStorage.getItem(STORAGE_RUNNER) || "";
     els.ownerInput.value = localStorage.getItem(STORAGE_OWNER) || "";
     els.repoInput.value = localStorage.getItem(STORAGE_REPO) || "";
   }
@@ -190,6 +216,12 @@
         state.workflows = Array.isArray(config.workflows) ? config.workflows : [];
         state.projects = Array.isArray(config.projects) ? config.projects : [];
         state.commands = Array.isArray(commandConfig.commands) ? commandConfig.commands : [];
+        state.runners = githubRunners(config);
+        if (!runnerById(state.selectedRunnerId)) {
+          state.selectedRunnerId = state.runners.length ? state.runners[0].id : "";
+        }
+        renderRunnerSelect();
+        applySelectedRunner(false);
         if (!state.workflows.length) {
           throw new Error("projects.json must define workflows");
         }
@@ -210,6 +242,12 @@
         state.workflows = fallbackConfig.workflows;
         state.projects = fallbackConfig.projects;
         state.commands = fallbackConfig.commands;
+        state.runners = githubRunners(fallbackConfig);
+        if (!runnerById(state.selectedRunnerId)) {
+          state.selectedRunnerId = state.runners.length ? state.runners[0].id : "";
+        }
+        renderRunnerSelect();
+        applySelectedRunner(false);
         state.selectedCommands = [];
         selectWorkflow(state.workflows[0].id);
         renderWorkflows();
@@ -220,8 +258,66 @@
   }
 
   function updateRepoLabel() {
-    els.repoLabel.textContent = (els.ownerInput.value || "owner") + "/" + (els.repoInput.value || "repo");
+    var runner = selectedRunner();
+    var repoText = (els.ownerInput.value || "owner") + "/" + (els.repoInput.value || "repo");
+    els.repoLabel.textContent = runner && runner.name ? runner.name + " - " + repoText : repoText;
     els.labelPreview.textContent = queuedLabel();
+  }
+
+  function githubRunners(config) {
+    var github = config && config.github ? config.github : {};
+    var runners = Array.isArray(github.runners) ? github.runners : [];
+    if (!runners.length) {
+      runners = [{
+        id: "default",
+        name: "Default runner",
+        owner: github.owner || "",
+        repo: github.repo || ""
+      }];
+    }
+    return runners.map(function (runner, index) {
+      return {
+        id: String(runner.id || "runner" + (index + 1)),
+        name: String(runner.name || runner.id || "Runner " + (index + 1)),
+        owner: String(runner.owner || github.owner || ""),
+        repo: String(runner.repo || github.repo || ""),
+        description: String(runner.description || "")
+      };
+    });
+  }
+
+  function renderRunnerSelect() {
+    if (!els.runnerSelect) {
+      return;
+    }
+    els.runnerSelect.innerHTML = state.runners.map(function (runner) {
+      var selected = runner.id === state.selectedRunnerId ? " selected" : "";
+      return '<option value="' + escapeHtml(runner.id) + '"' + selected + ">" + escapeHtml(runner.name) + "</option>";
+    }).join("");
+    els.runnerSelect.value = state.selectedRunnerId;
+  }
+
+  function selectedRunner() {
+    return runnerById(state.selectedRunnerId) || (state.runners.length ? state.runners[0] : null);
+  }
+
+  function runnerById(runnerId) {
+    return state.runners.find(function (runner) {
+      return runner.id === runnerId;
+    }) || null;
+  }
+
+  function applySelectedRunner(force) {
+    var runner = selectedRunner();
+    if (!runner) {
+      return;
+    }
+    if (force || !els.ownerInput.value.trim()) {
+      els.ownerInput.value = runner.owner;
+    }
+    if (force || !els.repoInput.value.trim()) {
+      els.repoInput.value = runner.repo;
+    }
   }
 
   function setStatus(text, className) {
@@ -841,6 +937,7 @@
   function saveLocalSettings() {
     localStorage.setItem(STORAGE_OWNER, els.ownerInput.value.trim());
     localStorage.setItem(STORAGE_REPO, els.repoInput.value.trim());
+    localStorage.setItem(STORAGE_RUNNER, state.selectedRunnerId);
   }
 
   function validateForm() {

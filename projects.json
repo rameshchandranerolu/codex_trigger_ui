@@ -2,46 +2,82 @@
   "github": {
     "owner": "rameshchandranerolu",
     "repo": "codex_automation",
-    "queuedLabel": "codex:queued"
+    "queuedLabel": "codex:queued",
+    "runners": [
+      {
+        "id": "current",
+        "name": "Current VM",
+        "owner": "rameshchandranerolu",
+        "repo": "codex_automation",
+        "description": "Current runner VM"
+      },
+      {
+        "id": "mumbai619658",
+        "name": "Mumbai 619658",
+        "owner": "rameshchandranerolu",
+        "repo": "codex_automation_mumbai619658",
+        "description": "Second runner VM"
+      }
+    ]
   },
   "workflows": [
     {
       "id": "bugdb",
       "name": "BugDB",
       "kind": "MCP / Helper",
-      "description": "Read, comment, or create BugDB bugs.",
-      "context": "BugDB-only workflow. Use BugDB MCP for existing bug reads, summaries, updates, and comments. Use the local bugdb_create_bug.py helper only for new bug creation.",
+      "description": "Read, comment, create, or update BugDB bugs.",
+      "context": "BugDB-only workflow. Use BugDB MCP first for existing bug reads, summaries, comments, and field updates when the needed MCP tool exists. If the MCP session cannot update existing bug fields, an approved BugDB field update may use the dev-bugdb-helper skill CLI at ~/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh. Use /bin/python3.11 only through that skill wrapper, do not change global python3, do not print OAuth tokens or client secrets, read the current bug/header fields before mutation, and resolve friendly field labels such as Bug Fix ETA, Bug Fix By, or Component Version to exact BugDB API keys before constructing the update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys. Update only the requested fields while preserving required BugDB fields, then verify with a readback and rerun any gated validation. Use the local bugdb_create_bug.py helper only for new bug creation.",
       "operations": [
         {
           "id": "summarize",
           "name": "Summarize Bug",
           "description": "Retrieve the bug through BugDB MCP and provide a concise summary.",
-          "fields": ["bugNumber", "details"],
-          "requiredFields": ["bugNumber"],
+          "fields": [
+            "bugNumber",
+            "details"
+          ],
+          "requiredFields": [
+            "bugNumber"
+          ],
           "titleField": "bugNumber"
         },
         {
           "id": "comment",
           "name": "Add Private Comment",
           "description": "Retrieve the bug through BugDB MCP, then add the requested hidden/private comment through MCP.",
-          "fields": ["bugNumber", "bugComment"],
-          "requiredFields": ["bugNumber", "bugComment"],
+          "fields": [
+            "bugNumber",
+            "bugComment"
+          ],
+          "requiredFields": [
+            "bugNumber",
+            "bugComment"
+          ],
           "titleField": "bugNumber"
         },
         {
           "id": "create",
           "name": "Create Bug",
           "description": "Create a new BugDB bug using the local helper. Defaults come from bugdb_create_payload.json.",
-          "fields": ["bugDescription", "details"],
-          "requiredFields": ["bugDescription"],
+          "fields": [
+            "bugDescription",
+            "details"
+          ],
+          "requiredFields": [
+            "bugDescription"
+          ],
           "titleField": "bugDescription"
         },
         {
           "id": "custom",
           "name": "Custom BugDB Task",
           "description": "Run a custom BugDB-only request. Existing bugs must use MCP where possible.",
-          "fields": ["details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         }
       ]
@@ -51,18 +87,21 @@
       "name": "ADE",
       "kind": "ADE Skill",
       "description": "ADE view, transaction, OraReview, merge request, and cleanup workflows.",
-      "context": "ADE-only workflow. Use the ade-lens, orareview, and mergereq skills where relevant. If a selected skill reports a newer version, install it before continuing without asking for separate approval. Use CodeSearch, OraReview, and Mergereq MCP tools for read-only lookup and report active view, active transaction, command outcomes, and next step.",
+      "context": "ADE-only workflow. Use the ade-lens, orareview, and mergereq skills where relevant. If a selected skill reports a newer version, install it before continuing without asking for separate approval. Use CodeSearch, OraReview, and Mergereq MCP tools for read-only lookup and report active view, active transaction, command outcomes, and next step. For first OraReview creation, no existing review is expected; if orareview -x or orareview -t <txn> -x says no review exists after the ADE view, transaction, saved changes, and reviewers are verified, continue with CreateOra.sh and verify status after creation. When CodeSearch is unavailable or inconclusive, use the user's natural-language context and read-only inspection under /ade_autofs/ud522_fa/FUSIONAPPS_PT.V2MIBHCMBRONZE_LINUX.X64.rdd/LATEST/ for repository-relative paths before the ADE view exists. RunInView.sh executes commands from the view's fusionapps root; only when preparing a command for RunInView.sh, if a repository-relative path starts with fusionapps/, pass it without the leading fusionapps/. For ADE view locks such as ade_info.vmd.free or Locked by process id, suspect ade persist first: run ade persist -list outside any view, close the matching full view with ade persist -c <viewname>, then retry once. Do not remove ade_locks.wrd automatically.",
       "requirements": [
         "Use the ade-lens skill.",
         "If ade-lens reports a newer version is available, install the update automatically before ADE work and continue without asking for approval.",
         "Use the orareview skill for OraReview upload, status, close, and reviewer-comment workflows.",
         "Use the mergereq skill for mergereq submission, quality, property, and post-approval merge workflows.",
         "Use CodeSearch MCP for ADE/OpenGrok code searches.",
+        "When CodeSearch is unavailable or inconclusive, use natural-language context from the issue or follow-up and inspect repository-relative paths read-only under /ade_autofs/ud522_fa/FUSIONAPPS_PT.V2MIBHCMBRONZE_LINUX.X64.rdd/LATEST/ before the ADE view exists.",
         "Use OraReview MCP tools for read-only review metadata, reviewer status, comments, and merge-check details.",
         "Use Mergereq MCP tools for read-only report-card status and current-transaction quality previews.",
         "Do not run ade_codex from the GitHub runner; this is already a non-interactive codex exec session.",
         "Run ADE commands from the normal login home/ADE environment, not a temporary HOME.",
         "For ADE view and transaction setup, prefer non-interactive ADE Lens scripts such as CreateViewAndTxn.sh and RunInView.sh.",
+        "RunInView.sh executes commands from the view's fusionapps root; only when preparing a command for RunInView.sh, if a repository-relative path starts with fusionapps/, pass it without the leading fusionapps/. Example: use hcm/per/db/plsql/per_asg_xla_pos_liquidation.pkb, not fusionapps/hcm/per/db/plsql/per_asg_xla_pos_liquidation.pkb.",
+        "If an approved ADE command fails with a view lock such as ade_info.vmd.free or Locked by process id, suspect ade persist before manual lock cleanup. From outside any view, run ade persist -list; if it lists the target full view name, run ade persist -c <viewname>, then retry the failed ADE command once. Do not remove ade_locks.wrd or ade_info.vmd.free automatically, and do not kill arbitrary PIDs. If ade persist -c does not clear the matching view or cleanup of .<hostname>_ade_server.sock/.<hostname>_ade_server.pid seems necessary, stop with CODEX_TRIGGER_STATUS: needs-input and ask for explicit approval.",
         "If Create View has no transaction name, generate a simple transaction name from the view name and current UTC timestamp.",
         "Create real ADE views in normal ADE storage so they are visible to ordinary ade lsviews.",
         "If ADE falls back to /tmp/rnerolu_ade_* or reports sandbox write limits, stop and report failure instead of claiming the view was created.",
@@ -75,88 +114,161 @@
           "id": "create-view",
           "name": "Create View",
           "description": "Create or enter an ADE view and report the active transaction.",
-          "fields": ["adeView", "adeBranch", "adeTxn", "bugNumber", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "adeBranch",
+            "adeTxn",
+            "bugNumber",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "enter-view",
           "name": "Enter Existing View",
           "description": "Enter an existing ADE view and report its current state.",
-          "fields": ["adeView", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "view-status",
           "name": "Check View Status",
           "description": "Inspect ADE view, transaction, and reservation status.",
-          "fields": ["adeView", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "create-transaction",
           "name": "Create Transaction",
           "description": "Create or enter a transaction inside the selected ADE view.",
-          "fields": ["adeView", "adeTxn", "bugNumber", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "adeTxn",
+            "bugNumber",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "refresh-view",
           "name": "Refresh View",
           "description": "Refresh the selected ADE view when appropriate.",
-          "fields": ["adeView", "adeBranch", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "adeBranch",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "code-search",
           "name": "CodeSearch",
           "description": "Search ADE/OpenGrok through the CodeSearch MCP.",
-          "fields": ["adeView", "adeBranch", "module", "details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "adeView",
+            "adeBranch",
+            "module",
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         },
         {
           "id": "checkin-save",
           "name": "Check In And Save",
           "description": "Check in and save the active ADE transaction.",
-          "fields": ["adeView", "adeTxn", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "adeTxn",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "ora-review",
           "name": "Create OraReview",
           "description": "Create or update OraReview for the selected ADE view and bug.",
-          "fields": ["adeView", "bugNumber", "details"],
-          "requiredFields": ["adeView", "bugNumber"],
+          "fields": [
+            "adeView",
+            "bugNumber",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView",
+            "bugNumber"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "merge-request",
           "name": "Submit Merge Request",
           "description": "Submit or manage a merge request for the selected ADE transaction.",
-          "fields": ["adeView", "adeTxn", "bugNumber", "details"],
-          "requiredFields": ["adeView"],
+          "fields": [
+            "adeView",
+            "adeTxn",
+            "bugNumber",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "cleanup-view",
           "name": "Cleanup View",
           "description": "Clean up an ADE view or transaction only when explicitly requested.",
-          "fields": ["adeView", "details"],
-          "requiredFields": ["adeView", "details"],
+          "fields": [
+            "adeView",
+            "details"
+          ],
+          "requiredFields": [
+            "adeView",
+            "details"
+          ],
           "titleField": "adeView"
         },
         {
           "id": "custom",
           "name": "Custom ADE Task",
           "description": "Run a custom ADE-only task with ade-lens.",
-          "fields": ["adeView", "adeBranch", "adeTxn", "bugNumber", "module", "details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "adeView",
+            "adeBranch",
+            "adeTxn",
+            "bugNumber",
+            "module",
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "adeView"
         }
       ]
@@ -167,39 +279,59 @@
       "kind": "Local Project",
       "description": "Inspect, fix, or test a configured local ALM checkout.",
       "requiresProject": true,
-      "projectAliases": ["employment-process-ui", "employment-other-ui", "employment-all"],
+      "projectAliases": [
+        "employment-process-ui",
+        "employment-other-ui",
+        "employment-all"
+      ],
       "context": "Local project workflow. Work only in the selected local project path unless the task explicitly widens scope.",
       "operations": [
         {
           "id": "inspect",
           "name": "Inspect",
           "description": "Inspect the selected project and report findings.",
-          "fields": ["details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         },
         {
           "id": "fix",
           "name": "Fix",
           "description": "Make a scoped fix in the selected project and run relevant checks.",
-          "fields": ["details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         },
         {
           "id": "test",
           "name": "Test",
           "description": "Run requested tests or checks in the selected project.",
-          "fields": ["details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         },
         {
           "id": "custom",
           "name": "Custom Project Task",
           "description": "Run a custom task in the selected project.",
-          "fields": ["details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         }
       ]
@@ -210,15 +342,25 @@
       "kind": "Command Catalog",
       "description": "Run configured command intents or request approval for a natural-language command plan.",
       "requiresProject": true,
-      "projectAliases": ["codex-automation", "ade", "employment-process-ui", "employment-other-ui", "employment-all"],
-      "context": "Custom command workflow. Use the selected run context and the validated command catalog. Catalog commands are approved to run in order. Skill updates are pre-approved for GitHub runner execution; if a selected skill reports a newer version, install it before continuing without asking for separate approval. For natural-language custom tasks, infer the relevant skill or MCP from the request text, project context, and available ADE or transaction details. Use read-only MCP tools directly for information gathering, status, report-card, review-comment, and code-search questions. For natural-language state-changing requests without catalog commands, propose a numbered command sequence first and ask for approval with CODEX_TRIGGER_STATUS: needs-input. After approval arrives in a follow-up comment and the issue is tagged followup-codex, continue in the same session and run the approved sequence.",
+      "projectAliases": [
+        "codex-automation",
+        "ade",
+        "employment-process-ui",
+        "employment-other-ui",
+        "employment-all"
+      ],
+      "context": "Custom command workflow. Use the selected run context and the validated command catalog. The runner starts GitHub Codex sessions with full local access on this trusted VM; the approval boundary is the issue workflow, command catalog, and follow-up approval comments. Catalog commands are approved to run in order. Direct natural-language catalog intents are approved when exactly one intent matches and required parameters are unambiguous. Skill updates are pre-approved for GitHub runner execution; if a selected skill reports a newer version, install it before continuing without asking for separate approval. For natural-language custom tasks, infer the relevant skill or MCP from the request text, project context, follow-up comments, and available ADE or transaction details. Use read-only MCP tools directly for information gathering, status, report-card, review-comment, and code-search questions. Use BugDB MCP first for existing bug reads, summaries, comments, and field updates when the needed MCP tool exists. If the MCP session cannot update existing bug fields, an approved BugDB field update may use the dev-bugdb-helper skill CLI at ~/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh. Use /bin/python3.11 only through that skill wrapper, do not change global python3, do not print OAuth tokens or client secrets, read the current bug/header fields before mutation, and resolve friendly field labels such as Bug Fix ETA, Bug Fix By, or Component Version to exact BugDB API keys before constructing the update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys. Update only the requested fields while preserving required BugDB fields, then verify with a readback and rerun any gated validation. For first OraReview creation, no existing review is expected; if orareview -x or orareview -t <txn> -x says no review exists after the ADE view, transaction, saved changes, and reviewers are verified, continue with CreateOra.sh and verify status after creation. If CodeSearch is unavailable or inconclusive for ADE file discovery, use the user's supplied path or intent and read-only inspection under /ade_autofs/ud522_fa/FUSIONAPPS_PT.V2MIBHCMBRONZE_LINUX.X64.rdd/LATEST/ before the ADE view exists. RunInView.sh executes commands from the view's fusionapps root; only when preparing a command for RunInView.sh, if a repository-relative path starts with fusionapps/, pass it without the leading fusionapps/. For ADE view locks such as ade_info.vmd.free or Locked by process id, suspect ade persist first: run ade persist -list outside any view, close the matching full view with ade persist -c <viewname>, then retry once. Do not remove ade_locks.wrd automatically. HCM bug validation blocks later work unless it exits 0 and outputs standalone PASS; non-PASS results require follow-up verification, BugDB updates through MCP when available or dev-bugdb-helper when MCP lacks field-update support, and validation rerun. HCM PMC must first identify the unique ADE view and transaction named rnerolu_bug-<bugid>, summarize the exact PMC command sequence, and ask for confirmation before running it. For natural-language state-changing requests without catalog commands, propose a numbered command sequence first and ask for approval with CODEX_TRIGGER_STATUS: needs-input. After approval arrives in a follow-up comment and the issue is tagged followup-codex, continue in the same session and run the approved sequence.",
       "operations": [
         {
           "id": "run",
           "name": "Run Commands",
           "description": "Run selected command-catalog intents, or propose and request approval for a natural-language command plan.",
-          "fields": ["details"],
-          "requiredFields": ["details"],
+          "fields": [
+            "details"
+          ],
+          "requiredFields": [
+            "details"
+          ],
           "titleField": "details"
         }
       ]

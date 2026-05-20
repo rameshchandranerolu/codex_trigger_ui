@@ -75,12 +75,111 @@
       "mcp": "orareview",
       "instructions": [
         "Use the orareview skill for upload/update workflow and required preflight checks.",
+        "For a first OraReview upload, no existing review is expected. If orareview -x or orareview -t <txn> -x says no review exists, and the approved task is to create OraReview after verifying the ADE view, transaction, saved changes, and reviewers, continue with CreateOra.sh and verify status after creation.",
         "Use OraReview MCP tools for read-only review metadata, reviewer status, comments, and merge-check details when helpful."
       ],
       "parameters": [
         { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
         { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
         { "name": "reviewers", "label": "Reviewers", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
+      ]
+    },
+    {
+      "id": "hcm.bug-validation",
+      "label": "HCM Bug Validation",
+      "workflows": ["ade", "custom"],
+      "order": 75,
+      "template": "\"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{bug_ref}}\"",
+      "natural_language": {
+        "enabled": true,
+        "execution": "direct",
+        "examples": [
+          "run bug validation for bug 30595896",
+          "validate HCM bug rnerolu_bug-30595896",
+          "run hcmbugvalidation for 30595896"
+        ],
+        "parameter_hints": [
+          "Extract exactly one bug number or rnerolu_bug-<number> reference from the request.",
+          "If the request has no bug id or more than one plausible bug id, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
+        ]
+      },
+      "postcondition": {
+        "exit_code": 0,
+        "output_verdict": "PASS",
+        "description": "The PASS verdict must be a standalone word in the validation output.",
+        "on_failure_status": "needs-input",
+        "failure_guidance": "Do not run subsequent commands. Summarize the useful validation output and wait for user verification or follow-up fix instructions."
+      },
+      "followup_remediation": {
+        "summary": "Use BugDB MCP for explicit BugDB updates needed to fix validation when available; if MCP lacks field-update support, use dev-bugdb-helper for approved field updates, then rerun the same HCM bug validation command.",
+        "instructions": [
+          "Prefer BugDB MCP for existing bug updates when the needed field-update tool exists.",
+          "If MCP cannot update existing bug fields, use ~/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh for approved field updates only; the wrapper is pinned to /bin/python3.11 and global python3 must not be changed.",
+          "Resolve friendly field labels such as Bug Fix ETA, Bug Fix By, or Component Version to exact BugDB API keys before constructing a bug-update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys.",
+          "Do not print OAuth tokens or client secrets.",
+          "After applying explicit BugDB follow-up instructions, rerun validation and keep gating until exit code 0 plus standalone PASS."
+        ]
+      },
+      "parameters": [
+        {
+          "name": "bug_ref",
+          "label": "Bug reference",
+          "required": true,
+          "pattern": "^rnerolu_bug-[0-9]+$",
+          "normalization": { "type": "bug_ref", "prefix": "rnerolu_bug-" }
+        }
+      ]
+    },
+    {
+      "id": "hcm.pmc",
+      "label": "HCM PMC",
+      "workflows": ["ade", "custom"],
+      "order": 78,
+      "template": "hcm pmc bug={{bug}} txn=rnerolu_bug-{{bug}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "run PMC for bug 38602097",
+          "run HCM PMC for 38602097",
+          "start PMC for rnerolu_bug-38602097"
+        ],
+        "parameter_hints": [
+          "Extract exactly one numeric bug id, accepting either a bare number or rnerolu_bug-<number> reference.",
+          "Derive the transaction name as rnerolu_bug-<bugid> and use that transaction to identify the target ADE view.",
+          "If no bug id, multiple bug ids, or multiple matching view/transaction candidates are found, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
+        ]
+      },
+      "preflight": [
+        "Extract exactly one numeric bug id and derive transaction name rnerolu_bug-{{bug}}.",
+        "Identify the ADE view whose active or target transaction is rnerolu_bug-{{bug}} using ADE as the source of truth; if already inside a view, verify it with ade pwv first.",
+        "If no unique matching view and transaction can be identified, stop and ask the requester for the view or transaction choice with CODEX_TRIGGER_STATUS: needs-input.",
+        "Before execution, summarize the identified view, transaction, and exact PMC command sequence for confirmation."
+      ],
+      "approval": {
+        "required": true,
+        "status": "needs-input",
+        "guidance": "Ask the requester to confirm entering the identified ADE view and running the listed PMC sequence. Do not run PMC until approval arrives in a follow-up comment."
+      },
+      "instructions": [
+        "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",
+        "If starting outside the view, use ADE Lens RunInView.sh or equivalent ADE setup to execute commands in the confirmed view environment.",
+        "Run the expand commands before pmc_wrapper, exactly in the listed order.",
+        "Stop on the first failing command, report the command, exit code, and useful error text, and include CODEX_TRIGGER_STATUS: needs-input."
+      ],
+      "command_sequence": [
+        "ade expand -recurse $AVR/fusionapps/com/config",
+        "ade expand $AVR/fainteg -r",
+        "$HCMDEV_ROOT/bin/pmc_wrapper -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1"
+      ],
+      "parameters": [
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$",
+          "normalization": { "type": "bug_number", "prefix": "rnerolu_bug-" }
+        }
       ]
     },
     {
