@@ -62,6 +62,12 @@
       placeholder: "39335023",
       taskLabel: "Bug number"
     },
+    targetRelease: {
+      id: "targetReleaseInput",
+      label: "Target release",
+      placeholder: "26.07 or 2607",
+      taskLabel: "Target release"
+    },
     bugDescription: {
       id: "bugDescriptionInput",
       label: "Bug description",
@@ -109,6 +115,14 @@
       rows: 8,
       placeholder: "Add any details, expected output, files, checks, or constraints",
       taskLabel: "Additional inputs"
+    },
+    instructions: {
+      id: "instructionsInput",
+      label: "Instructions",
+      type: "textarea",
+      rows: 12,
+      placeholder: "Describe the VB bug request in plain English. Include bug number, base branch, important files, whether it is a regression, and what Codex should analyze or prepare.",
+      taskLabel: "Instructions"
     }
   };
 
@@ -411,12 +425,14 @@
       return;
     }
 
-    html += operationSelectHtml(workflow);
+    if (workflowHasOperations(workflow)) {
+      html += operationSelectHtml(workflow);
+    }
     if (workflow.requiresProject) {
       html += projectSelectHtml();
     }
 
-    (operationFields(operation) || ["details"]).forEach(function (fieldName) {
+    workflowFields(workflow, operation).forEach(function (fieldName) {
       html += fieldHtml(fieldName);
     });
 
@@ -709,6 +725,10 @@
     return workflow && Array.isArray(workflow.operations) ? workflow.operations : [];
   }
 
+  function workflowHasOperations(workflow) {
+    return workflowOperations(workflow).length > 0;
+  }
+
   function firstOperation(workflow) {
     var operations = workflowOperations(workflow);
     return operations.length ? operations[0] : null;
@@ -716,6 +736,13 @@
 
   function operationFields(operation) {
     return operation && Array.isArray(operation.fields) ? operation.fields : ["details"];
+  }
+
+  function workflowFields(workflow, operation) {
+    if (!workflowHasOperations(workflow)) {
+      return ["instructions"];
+    }
+    return operationFields(operation);
   }
 
   function commandsForWorkflow(workflowId) {
@@ -784,6 +811,9 @@
     if (operation && operation.titleField) {
       primary = inputValue(operation.titleField);
     }
+    if (!primary && workflow && !workflowHasOperations(workflow)) {
+      primary = firstLine(inputValue("instructions"));
+    }
     if (!primary && workflow && workflow.requiresProject) {
       primary = state.selectedProjectAlias;
     }
@@ -794,7 +824,7 @@
 
     return [
       workflow && workflow.name ? workflow.name : "Workflow",
-      operation && operation.name ? operation.name : "Task",
+      operation && operation.name ? operation.name : "Instructions",
       primary
     ].join(": ");
   }
@@ -802,8 +832,12 @@
   function buildTaskText() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
-    var fields = operationFields(operation);
+    var fields = workflowFields(workflow, operation);
     var lines = [];
+
+    if (workflow && !workflowHasOperations(workflow)) {
+      return inputValue("instructions").trim() + "\n";
+    }
 
     if (operation && operation.description) {
       lines.push(operation.description);
@@ -894,9 +928,12 @@
     var lines = [
       "Queue: " + queuedLabel(),
       "",
-      "Workflow: " + (workflow ? workflow.id : ""),
-      "Operation: " + (operation ? operation.id : "")
+      "Workflow: " + (workflow ? workflow.id : "")
     ];
+
+    if (operation) {
+      lines.push("Operation: " + operation.id);
+    }
 
     if (workflow && workflow.requiresProject) {
       lines.push("Project: " + state.selectedProjectAlias);
@@ -954,8 +991,11 @@
     if (!workflow) {
       throw new Error("Select a workflow.");
     }
-    if (!operation) {
+    if (workflowHasOperations(workflow) && !operation) {
       throw new Error("Select an operation.");
+    }
+    if (!workflowHasOperations(workflow)) {
+      requiredFields = ["instructions"];
     }
     if (workflow.requiresProject && !state.selectedProjectAlias) {
       throw new Error("Select a project.");
@@ -967,7 +1007,27 @@
       }
     });
 
+    validateWorkflowFields(workflow);
     validateSelectedCommands(workflow);
+  }
+
+  function validateWorkflowFields(workflow) {
+    if (!workflow || workflow.id !== "alm-backport") {
+      return;
+    }
+
+    var release = inputValue("targetRelease").trim().toLowerCase();
+    if (release === "bronze") {
+      throw new Error("Bronze is current codeline, not a backport target.");
+    }
+    if (!/^(\d{2}[._-]?\d{2})$/.test(release)) {
+      throw new Error("Enter target release as 26.07, 26.10, 27.01, or compact 2607.");
+    }
+    var digits = release.replace(/\D/g, "");
+    var month = parseInt(digits.slice(2), 10);
+    if (month < 1 || month > 12) {
+      throw new Error("Target release month must be between 01 and 12.");
+    }
   }
 
   function validateSelectedCommands(workflow) {
