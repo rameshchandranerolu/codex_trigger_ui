@@ -28,9 +28,10 @@ the GitHub API and does not ask users to paste a token.
 Before making this repo public, review `projects.json` and keep workflow names,
 project aliases, and descriptions non-sensitive.
 
-The UI is workflow-first. It generates `Workflow: bugdb`, `Workflow: ade`, or
-`Workflow: project`. `Project:` is generated only for `Workflow: project`.
-`commands.json` drives the ADE command picker and emits structured `Commands:`
+The UI is workflow-first. BugDB and ADE requests are submitted through
+`Workflow: custom` with a selected run project, so they can be typed naturally
+in the Additional inputs box. `Project:` is generated for workflows that require
+a selected local context. `commands.json` drives optional structured command
 entries that the private runner validates before execution.
 Keep the private runner repo's `config.json` mapped with matching workflows and
 run-project aliases before using newly added workflow buttons.
