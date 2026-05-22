@@ -170,14 +170,18 @@
         "When using scripts/ade-scripts/RunInView.sh for the expand commands, keep $AVR inside the command argument passed to the local wrapper so it expands inside the ADE view session; do not let the outer /bin/bash -lc shell expand $AVR.",
         "Run the expand commands before pmc_wrapper, exactly in the listed order.",
         "After each expand command, inspect output inside the same loaded ADE session and stop before pmc_wrapper if it contains does not exist, skipping, Nothing to expand, or a resolved target such as /fusionapps/... or /fainteg that indicates $AVR was lost; do not split expand commands into separate RunInView.sh invocations solely to inspect output.",
+        "Before pmc_wrapper, check whether sqlplus works. If command -v sqlplus fails or sqlplus cannot load the Oracle client, and /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus plus lib exist, export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0 and LD_LIBRARY_PATH=${ORACLE_HOME}/lib in the same loaded ADE shell before pmc_wrapper; prepend ${ORACLE_HOME}/bin to PATH if needed.",
         "After pmc_wrapper finishes, verify the generated PMC HTML and premerge artifacts before reporting success.",
-        "Treat PMC_CODE_ISSUE, PMC_CODE_ERROR, BUG Validation Status: INVALID, missing fusionapps/premerge/premerge_result.json, or a Central PMC section that contains only startup/initial checks as blocking.",
+        "Treat PMC_CODE_ISSUE, PMC_CODE_ERROR, missing fusionapps/premerge/premerge_result.json, or a Central PMC section that contains only startup/initial checks as blocking.",
+        "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, run \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"rnerolu_bug-{{bug}}\" manually in the same confirmed ADE view, capture output to a .txt file, and require exit code 0 plus standalone PASS.",
+        "When manual bug validation PASSes, upload the .txt output to BugDB with ~/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload {{bug}} <txt-file>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
         "If any blocking PMC marker is present, do not report PMC success and do not proceed to mergereq; include CODEX_TRIGGER_STATUS: needs-input with the exact report path and blocker.",
         "Stop on the first failing command, report the command, exit code, and useful error text, and include CODEX_TRIGGER_STATUS: needs-input."
       ],
       "command_sequence": [
         "ade expand -recurse $AVR/fusionapps/com/config",
         "ade expand $AVR/fainteg -r",
+        "if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0; export LD_LIBRARY_PATH=${ORACLE_HOME}/lib; export PATH=${ORACLE_HOME}/bin:${PATH}; fi",
         "$HCMDEV_ROOT/bin/pmc_wrapper -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1"
       ],
       "parameters": [
@@ -202,7 +206,7 @@
         "Use the mergereq skill for submission workflow, property checks, and command generation.",
         "Use Mergereq MCP tools for report-card details and current-transaction quality previews before submitting when available.",
         "Before submitting or resending mergereq for HCM/ADE work, verify the latest PMC evidence for the active transaction.",
-        "Do not submit mergereq when the latest PMC report has PMC_CODE_ISSUE, PMC_CODE_ERROR, BUG Validation Status: INVALID, missing premerge_result.json, or otherwise incomplete Central PMC results; report CODEX_TRIGGER_STATUS: needs-input instead."
+        "Do not submit mergereq when the latest PMC report has PMC_CODE_ISSUE, PMC_CODE_ERROR, missing premerge_result.json, or otherwise incomplete Central PMC results. If the only PMC concern is BUG Validation Status: INVALID, require manual HCM bug validation to PASS and upload the txt evidence to the bug first; report unresolved blockers with CODEX_TRIGGER_STATUS: needs-input instead."
       ],
       "parameters": [
         { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
