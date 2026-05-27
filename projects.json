@@ -102,9 +102,9 @@
     },
     {
       "id": "alm-backport",
-      "name": "ALM Backport",
-      "kind": "ALM Git",
-      "description": "Backport one source BugDB bug's ALM transaction to a numeric maintenance release.",
+      "name": "Backport",
+      "kind": "VB/ADE",
+      "description": "Backport one base BugDB bug to a numeric maintenance release using VB or ADE.",
       "requiresProject": true,
       "projectAliases": [
         "employment-process-ui",
@@ -112,22 +112,26 @@
         "employment-common-ui",
         "employment-public-ui"
       ],
-      "context": "Approval-gated ALM Git release backport workflow. Use the selected local ALM Git project. Target releases must be numeric, such as 26.07, 26.10, 27.01, or compact 2607; bronze is current codeline and must stop with CODEX_TRIGGER_STATUS: needs-input. Derive maintenance branch, BugDB version, REL13PREARU tag, and branch naming from the target release; maintenance-<release> branches use ${USER}_mnt<release>-<bug_number>. First run is read-only: read the source BugDB bug, locate exactly one ALM transaction/MR or ask for the MR URL, verify origin/maintenance-<release>, verify branch/worktree availability, and propose the numbered command sequence with CODEX_TRIGGER_STATUS: needs-input. After approval, create the backport bug, add REL13PREARU-<release> and FWD tags, run validation, cherry-pick into an isolated worktree branch, push, and create an ALM MR with scripts/alm-scripts/create_alm_mr.py using explicit reviewers only: alok.x.sahay@oracle.com,sanket.jain@oracle.com,abhilash.chacko@oracle.com,mehul.shah@oracle.com. Do not use ALM default reviewers and do not send relatedIssues during MR creation; put the BugDB number in the MR description. For post-merge VB_INTG tags, use bugdb_create_bug.py --add-tag-to-bug <backport_bug> --tag 2419_EMPL_VBINTG_<mr_number>; do not use dev-bugdb-helper raw --payload-json for /header/<bug>/tags because that endpoint expects a form-encoded data=<json> payload.",
+      "context": "Approval-gated Backport workflow. Backport type is mandatory: VB follows the existing ALM Git/VB maintenance backport path, while ADE follows the ADE branch backport path. Base bug number is mandatory. Target release is composed from Release year LOV 26, 27, 28, 29, 30 and Release month LOV 01, 04, 07, 10, then emitted as yy.mm such as 26.07; compact values such as 2607 may be accepted only for compatibility. For VB, first run is read-only: read the base BugDB bug, locate exactly one ALM transaction/MR or ask for the MR URL, verify origin/maintenance-<release>, verify branch/worktree availability, and propose the numbered command sequence with CODEX_TRIGGER_STATUS: needs-input. After approval, create the backport bug with base_rptno=<base bug>, add REL13PREARU-<release> and FWD tags, cherry-pick into an isolated worktree branch, push, and create an ALM MR with scripts/alm-scripts/create_alm_mr.py using explicit reviewers only: alok.x.sahay@oracle.com,sanket.jain@oracle.com,abhilash.chacko@oracle.com,mehul.shah@oracle.com. For ADE, first read-only preflight checks /ade_autofs/ud522_fa/FUSIONAPPS_HWM<YYMM>_LINUX.X64.rdd first, then /ade_autofs/ud522_fa/FUSIONAPPS_PT.V2MIBHCMPREARU13<YYMM>_LINUX.X64.rdd; prefer HWM when present and stop with CODEX_TRIGGER_STATUS: needs-input if neither exists. HWM ADE path creates a view on the HWM latest label, creates a new BugDB bug with base_rptno, runs ade begintrans -backport <new_bug_number> -fromtrans <user>_bug-<base_bug> -bl <view_label> -nocheckout, sets README_BUGFIX_FUNCT_DESC from a summarized base-bug functional summary file, sets BugDB status 51, Gen/Prt I, Tracking backport, fills BugSmart closure, and runs bug validation. PREARU ADE path creates a PREARU view and transaction for the new bug, creates a new BugDB bug with base_rptno, sets Tracking type FWD, sets README_BUGFIX_FUNCT_DESC, and fills BugSmart closure. Do not expose HWM versus PREARU as a UI choice.",
       "operations": [
         {
           "id": "backport",
           "name": "Backport",
-          "description": "Prepare an approval-gated ALM backport for the source BugDB bug and target release.",
+          "description": "Prepare an approval-gated backport for the base BugDB bug and target release.",
           "fields": [
-            "bugNumber",
-            "targetRelease",
+            "backportType",
+            "baseBugNumber",
+            "releaseYear",
+            "releaseMonth",
             "details"
           ],
           "requiredFields": [
-            "bugNumber",
-            "targetRelease"
+            "backportType",
+            "baseBugNumber",
+            "releaseYear",
+            "releaseMonth"
           ],
-          "titleField": "bugNumber"
+          "titleField": "baseBugNumber"
         }
       ]
     },

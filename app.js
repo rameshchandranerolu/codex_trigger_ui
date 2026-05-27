@@ -62,11 +62,32 @@
       placeholder: "39335023",
       taskLabel: "Bug number"
     },
-    targetRelease: {
-      id: "targetReleaseInput",
-      label: "Target release",
-      placeholder: "26.07 or 2607",
-      taskLabel: "Target release"
+    backportType: {
+      id: "backportTypeInput",
+      label: "Backport type",
+      type: "select",
+      options: ["VB", "ADE"],
+      taskLabel: "Backport type"
+    },
+    baseBugNumber: {
+      id: "baseBugNumberInput",
+      label: "Base bug number",
+      placeholder: "39335023",
+      taskLabel: "Base bug number"
+    },
+    releaseYear: {
+      id: "releaseYearInput",
+      label: "Release year",
+      type: "select",
+      options: ["26", "27", "28", "29", "30"],
+      taskLabel: "Release year"
+    },
+    releaseMonth: {
+      id: "releaseMonthInput",
+      label: "Release month",
+      type: "select",
+      options: ["01", "04", "07", "10"],
+      taskLabel: "Release month"
     },
     bugDescription: {
       id: "bugDescriptionInput",
@@ -456,7 +477,7 @@
       });
     }
 
-    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, textarea"), function (element) {
+    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, select, textarea"), function (element) {
       element.addEventListener("input", updatePreview);
       element.addEventListener("change", updatePreview);
     });
@@ -503,6 +524,18 @@
       label: fieldName,
       placeholder: ""
     };
+    if (spec.type === "select") {
+      return [
+        '<label class="field">',
+        "<span>" + escapeHtml(spec.label) + "</span>",
+        '<select id="' + spec.id + '">',
+        (spec.options || []).map(function (option) {
+          return '<option value="' + escapeHtml(option) + '">' + escapeHtml(option) + "</option>";
+        }).join(""),
+        "</select>",
+        "</label>"
+      ].join("");
+    }
     if (spec.type === "textarea") {
       return [
         '<label class="field">',
@@ -848,11 +881,22 @@
       if (fieldName === "details") {
         return;
       }
+      if (workflow && workflow.id === "alm-backport" && (fieldName === "releaseYear" || fieldName === "releaseMonth")) {
+        return;
+      }
       var value = inputValue(fieldName);
       if (value) {
         lines.push((fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName) + ": " + value);
       }
     });
+
+    if (workflow && workflow.id === "alm-backport" && fields.indexOf("releaseYear") !== -1 && fields.indexOf("releaseMonth") !== -1) {
+      var year = inputValue("releaseYear");
+      var month = inputValue("releaseMonth");
+      if (year && month) {
+        lines.push("Target release: " + year + "." + month);
+      }
+    }
 
     if (fields.indexOf("details") !== -1) {
       lines.push("");
@@ -1016,17 +1060,24 @@
       return;
     }
 
-    var release = inputValue("targetRelease").trim().toLowerCase();
-    if (release === "bronze") {
-      throw new Error("Bronze is current codeline, not a backport target.");
+    var backportType = inputValue("backportType").trim();
+    if (["VB", "ADE"].indexOf(backportType) === -1) {
+      throw new Error("Backport type must be VB or ADE.");
     }
-    if (!/^(\d{2}[._-]?\d{2})$/.test(release)) {
-      throw new Error("Enter target release as 26.07, 26.10, 27.01, or compact 2607.");
+
+    var baseBug = inputValue("baseBugNumber").trim();
+    if (!/^\d+$/.test(baseBug)) {
+      throw new Error("Base bug number must contain digits only.");
     }
-    var digits = release.replace(/\D/g, "");
-    var month = parseInt(digits.slice(2), 10);
-    if (month < 1 || month > 12) {
-      throw new Error("Target release month must be between 01 and 12.");
+
+    var year = inputValue("releaseYear").trim();
+    if (["26", "27", "28", "29", "30"].indexOf(year) === -1) {
+      throw new Error("Release year must be 26, 27, 28, 29, or 30.");
+    }
+
+    var month = inputValue("releaseMonth").trim();
+    if (["01", "04", "07", "10"].indexOf(month) === -1) {
+      throw new Error("Release month must be 01, 04, 07, or 10.");
     }
   }
 
