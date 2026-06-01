@@ -147,6 +147,14 @@
       taskLabel: "Profile option name",
       conditional: "profileOption"
     },
+    profileOptionDescription: {
+      id: "profileOptionDescriptionInput",
+      label: "Profile option description",
+      type: "textarea",
+      rows: 4,
+      taskLabel: "Profile option description",
+      conditional: "profileOption"
+    },
     profileOptionValue: {
       id: "profileOptionValueInput",
       label: "SITE profile option value",
@@ -1265,6 +1273,12 @@
       if (seedType === "Profile Option") {
         if (!inputValue("profileOptionCode")) {
           throw new Error("Enter Profile option code.");
+        }
+        if (!inputValue("profileOptionName")) {
+          throw new Error("Enter Profile option name.");
+        }
+        if (!inputValue("profileOptionDescription")) {
+          throw new Error("Enter Profile option description.");
         }
         if (!inputValue("profileOptionValue")) {
           throw new Error("Enter SITE profile option value.");
