@@ -149,8 +149,54 @@
     },
     profileOptionValue: {
       id: "profileOptionValueInput",
-      label: "Profile option value",
-      taskLabel: "Profile option value",
+      label: "SITE profile option value",
+      taskLabel: "SITE profile option value",
+      conditional: "profileOption"
+    },
+    profileSiteEnabled: {
+      id: "profileSiteEnabledInput",
+      label: "Site enabled",
+      type: "select",
+      options: ["Y", "N"],
+      taskLabel: "Site enabled",
+      conditional: "profileOption"
+    },
+    profileSiteUpdatable: {
+      id: "profileSiteUpdatableInput",
+      label: "Site updatable",
+      type: "select",
+      options: ["Y", "N"],
+      taskLabel: "Site updatable",
+      conditional: "profileOption"
+    },
+    profileUserEnabled: {
+      id: "profileUserEnabledInput",
+      label: "User enabled",
+      type: "select",
+      options: ["N", "Y"],
+      taskLabel: "User enabled",
+      conditional: "profileOption"
+    },
+    profileUserUpdatable: {
+      id: "profileUserUpdatableInput",
+      label: "User updatable",
+      type: "select",
+      options: ["N", "Y"],
+      taskLabel: "User updatable",
+      conditional: "profileOption"
+    },
+    profileOptionUserValue: {
+      id: "profileOptionUserValueInput",
+      label: "USER profile option value",
+      taskLabel: "USER profile option value",
+      conditional: "profileOptionUserValue"
+    },
+    profileValidationSql: {
+      id: "profileValidationSqlInput",
+      label: "SQL validation",
+      type: "textarea",
+      rows: 5,
+      taskLabel: "SQL validation",
       conditional: "profileOption"
     },
     messageSql: {
@@ -571,6 +617,8 @@
     var seedFileInput = document.getElementById("seedFilePathInput");
     var type = typeInput ? typeInput.value : "Profile Option";
     var target = targetInput ? targetInput.value : "Bronze";
+    var userEnabledInput = document.getElementById("profileUserEnabledInput");
+    var userEnabled = userEnabledInput ? userEnabledInput.value : "N";
     if (seedFileInput && (!seedFileInput.value.trim() || isDefaultSeedFile(seedFileInput.value.trim()))) {
       seedFileInput.value = seedFileDefaultForType(type);
     }
@@ -579,6 +627,8 @@
       var show = true;
       if (conditional === "profileOption") {
         show = type === "Profile Option";
+      } else if (conditional === "profileOptionUserValue") {
+        show = type === "Profile Option" && userEnabled === "Y";
       } else if (conditional === "message") {
         show = type === "Message";
       } else if (conditional === "seedRelease") {
@@ -991,13 +1041,17 @@
         return;
       }
       if (workflow && workflow.id === "seeddata") {
-        if (fieldName === "seedReleaseYear" || fieldName === "seedReleaseMonth") {
+        var seedConditional = fieldSpecs[fieldName] && fieldSpecs[fieldName].conditional;
+        if (seedConditional === "seedRelease") {
           return;
         }
-        if (["profileOptionCode", "profileOptionName", "profileOptionValue"].indexOf(fieldName) !== -1 && inputValue("seedDataType") !== "Profile Option") {
+        if (seedConditional === "profileOption" && inputValue("seedDataType") !== "Profile Option") {
           return;
         }
-        if (fieldName === "messageSql" && inputValue("seedDataType") !== "Message") {
+        if (seedConditional === "profileOptionUserValue" && (inputValue("seedDataType") !== "Profile Option" || inputValue("profileUserEnabled") !== "Y")) {
+          return;
+        }
+        if (seedConditional === "message" && inputValue("seedDataType") !== "Message") {
           return;
         }
       }
@@ -1213,7 +1267,18 @@
           throw new Error("Enter Profile option code.");
         }
         if (!inputValue("profileOptionValue")) {
-          throw new Error("Enter Profile option value.");
+          throw new Error("Enter SITE profile option value.");
+        }
+        if (
+          ["Y", "N"].indexOf(inputValue("profileSiteEnabled")) === -1 ||
+          ["Y", "N"].indexOf(inputValue("profileSiteUpdatable")) === -1 ||
+          ["Y", "N"].indexOf(inputValue("profileUserEnabled")) === -1 ||
+          ["Y", "N"].indexOf(inputValue("profileUserUpdatable")) === -1
+        ) {
+          throw new Error("Profile option enabled/updatable fields must be Y or N.");
+        }
+        if (inputValue("profileUserEnabled") === "Y" && !inputValue("profileOptionUserValue")) {
+          throw new Error("Enter USER profile option value when User enabled is Y.");
         }
       } else if (!inputValue("messageSql")) {
         throw new Error("Enter Message SQL.");

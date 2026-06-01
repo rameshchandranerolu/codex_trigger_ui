@@ -144,7 +144,7 @@
       "projectAliases": [
         "ade"
       ],
-      "context": "Approval-gated SeedData workflow. Seed Data Type is mandatory and controls the requested fields: Profile Option uses profile option code/name/value and the default ProfileOptionSD.xml path; Message uses requester-supplied SQL and the default MessageSD.xml path. Target codeline is Bronze, Silver, or Release; Release composes year/month as yy.mm. First run is read-only: validate /scratch/<user>/codeshare/dbdetails.txt, /scratch/<user>/codeshare/defaultreviewers.txt, and /scratch/<user>/codeshare/SeedDataComparator.class, resolve the branch, derive partitionkey_value from the seed XML when needed, and propose the exact BugDB, ADE, DB SQL, import/export, comparator, report upload, checkin, and OraReview sequence with CODEX_TRIGGER_STATUS: needs-input. After approval, proceed one step at a time and stop on any BugDB, ADE, SQL, comparator, upload, checkin, or OraReview failure.",
+      "context": "Approval-gated SeedData workflow. Seed Data Type is mandatory and controls the requested fields: Profile Option uses profile option code/name, SITE value, enabled/updatable flags, optional USER value when User enabled is Y, optional SQL validation text, and the default ProfileOptionSD.xml path; Message uses requester-supplied SQL and the default MessageSD.xml path. Target codeline is Bronze, Silver, or Release; Release composes year/month as yy.mm. First run is read-only: validate /scratch/<user>/codeshare/dbdetails.txt, /scratch/<user>/codeshare/defaultreviewers.txt, and /scratch/<user>/codeshare/SeedDataComparator.class, resolve the branch, derive partitionkey_value from the seed XML when needed, and propose the exact BugDB, ADE, DB SQL, import/export, comparator, report upload, checkin, and OraReview sequence with CODEX_TRIGGER_STATUS: needs-input. After approval, proceed one step at a time and stop on any BugDB, ADE, SQL, comparator, upload, checkin, or OraReview failure.",
       "operations": [
         {
           "id": "seed-data",
@@ -160,6 +160,12 @@
             "profileOptionCode",
             "profileOptionName",
             "profileOptionValue",
+            "profileSiteEnabled",
+            "profileSiteUpdatable",
+            "profileUserEnabled",
+            "profileUserUpdatable",
+            "profileOptionUserValue",
+            "profileValidationSql",
             "messageSql",
             "details"
           ],
