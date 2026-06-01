@@ -4,6 +4,8 @@
   var STORAGE_OWNER = "codexTrigger.owner";
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
+  var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
+  var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
 
   var fallbackConfig = {
     github: {
@@ -89,6 +91,42 @@
       options: ["01", "04", "07", "10"],
       taskLabel: "Release month"
     },
+    seedDataType: {
+      id: "seedDataTypeInput",
+      label: "Seed Data Type",
+      type: "select",
+      options: ["Profile Option", "Message"],
+      taskLabel: "Seed Data Type"
+    },
+    seedTarget: {
+      id: "seedTargetInput",
+      label: "Target codeline",
+      type: "select",
+      options: ["Bronze", "Silver", "Release"],
+      taskLabel: "Target codeline"
+    },
+    seedReleaseYear: {
+      id: "seedReleaseYearInput",
+      label: "Release year",
+      type: "select",
+      options: ["26", "27", "28", "29", "30"],
+      taskLabel: "Release year",
+      conditional: "seedRelease"
+    },
+    seedReleaseMonth: {
+      id: "seedReleaseMonthInput",
+      label: "Release month",
+      type: "select",
+      options: ["01", "04", "07", "10"],
+      taskLabel: "Release month",
+      conditional: "seedRelease"
+    },
+    seedFilePath: {
+      id: "seedFilePathInput",
+      label: "Seed file path",
+      placeholder: "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml",
+      taskLabel: "Seed file path"
+    },
     bugDescription: {
       id: "bugDescriptionInput",
       label: "Bug description",
@@ -96,6 +134,32 @@
       rows: 6,
       placeholder: "Short BugDB subject/description",
       taskLabel: "Bug description"
+    },
+    profileOptionCode: {
+      id: "profileOptionCodeInput",
+      label: "Profile option code",
+      taskLabel: "Profile option code",
+      conditional: "profileOption"
+    },
+    profileOptionName: {
+      id: "profileOptionNameInput",
+      label: "Profile option name",
+      taskLabel: "Profile option name",
+      conditional: "profileOption"
+    },
+    profileOptionValue: {
+      id: "profileOptionValueInput",
+      label: "Profile option value",
+      taskLabel: "Profile option value",
+      conditional: "profileOption"
+    },
+    messageSql: {
+      id: "messageSqlInput",
+      label: "Message SQL",
+      type: "textarea",
+      rows: 8,
+      taskLabel: "Message SQL",
+      conditional: "message"
     },
     bugComment: {
       id: "bugCommentInput",
@@ -479,10 +543,50 @@
 
     Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, select, textarea"), function (element) {
       element.addEventListener("input", updatePreview);
-      element.addEventListener("change", updatePreview);
+      element.addEventListener("change", function () {
+        refreshSeedDataFields();
+        updatePreview();
+      });
     });
+    refreshSeedDataFields();
     updateSelectedWorkflowLabel();
     renderCommandBuilder();
+  }
+
+  function seedFileDefaultForType(type) {
+    return type === "Message" ? defaultMessageSeedFile : defaultProfileSeedFile;
+  }
+
+  function isDefaultSeedFile(value) {
+    return value === defaultProfileSeedFile || value === defaultMessageSeedFile;
+  }
+
+  function refreshSeedDataFields() {
+    var workflow = selectedWorkflow();
+    if (!workflow || workflow.id !== "seeddata") {
+      return;
+    }
+    var typeInput = document.getElementById("seedDataTypeInput");
+    var targetInput = document.getElementById("seedTargetInput");
+    var seedFileInput = document.getElementById("seedFilePathInput");
+    var type = typeInput ? typeInput.value : "Profile Option";
+    var target = targetInput ? targetInput.value : "Bronze";
+    if (seedFileInput && (!seedFileInput.value.trim() || isDefaultSeedFile(seedFileInput.value.trim()))) {
+      seedFileInput.value = seedFileDefaultForType(type);
+    }
+    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("[data-conditional]"), function (field) {
+      var conditional = field.getAttribute("data-conditional");
+      var show = true;
+      if (conditional === "profileOption") {
+        show = type === "Profile Option";
+      } else if (conditional === "message") {
+        show = type === "Message";
+      } else if (conditional === "seedRelease") {
+        show = target === "Release";
+      }
+      field.hidden = !show;
+      field.style.display = show ? "" : "none";
+    });
   }
 
   function operationSelectHtml(workflow) {
@@ -524,9 +628,11 @@
       label: fieldName,
       placeholder: ""
     };
+    var conditional = spec.conditional ? ' data-conditional="' + escapeHtml(spec.conditional) + '"' : "";
+    var fieldAttrs = ' data-field-name="' + escapeHtml(fieldName) + '"' + conditional;
     if (spec.type === "select") {
       return [
-        '<label class="field">',
+        '<label class="field"' + fieldAttrs + '>',
         "<span>" + escapeHtml(spec.label) + "</span>",
         '<select id="' + spec.id + '">',
         (spec.options || []).map(function (option) {
@@ -538,14 +644,14 @@
     }
     if (spec.type === "textarea") {
       return [
-        '<label class="field">',
+        '<label class="field"' + fieldAttrs + '>',
         "<span>" + escapeHtml(spec.label) + "</span>",
         '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '"></textarea>',
         "</label>"
       ].join("");
     }
     return [
-      '<label class="field">',
+      '<label class="field"' + fieldAttrs + '>',
       "<span>" + escapeHtml(spec.label) + "</span>",
       '<input id="' + spec.id + '" autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '">',
       "</label>"
@@ -884,6 +990,17 @@
       if (workflow && workflow.id === "alm-backport" && (fieldName === "releaseYear" || fieldName === "releaseMonth")) {
         return;
       }
+      if (workflow && workflow.id === "seeddata") {
+        if (fieldName === "seedReleaseYear" || fieldName === "seedReleaseMonth") {
+          return;
+        }
+        if (["profileOptionCode", "profileOptionName", "profileOptionValue"].indexOf(fieldName) !== -1 && inputValue("seedDataType") !== "Profile Option") {
+          return;
+        }
+        if (fieldName === "messageSql" && inputValue("seedDataType") !== "Message") {
+          return;
+        }
+      }
       var value = inputValue(fieldName);
       if (value) {
         lines.push((fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName) + ": " + value);
@@ -895,6 +1012,14 @@
       var month = inputValue("releaseMonth");
       if (year && month) {
         lines.push("Target release: " + year + "." + month);
+      }
+    }
+
+    if (workflow && workflow.id === "seeddata" && inputValue("seedTarget") === "Release") {
+      var seedYear = inputValue("seedReleaseYear");
+      var seedMonth = inputValue("seedReleaseMonth");
+      if (seedYear && seedMonth) {
+        lines.push("Target release: " + seedYear + "." + seedMonth);
       }
     }
 
@@ -1056,7 +1181,47 @@
   }
 
   function validateWorkflowFields(workflow) {
-    if (!workflow || workflow.id !== "alm-backport") {
+    if (!workflow) {
+      return;
+    }
+
+    if (workflow.id === "seeddata") {
+      var seedType = inputValue("seedDataType").trim();
+      if (["Profile Option", "Message"].indexOf(seedType) === -1) {
+        throw new Error("Seed Data Type must be Profile Option or Message.");
+      }
+
+      var seedTarget = inputValue("seedTarget").trim();
+      if (["Bronze", "Silver", "Release"].indexOf(seedTarget) === -1) {
+        throw new Error("Target codeline must be Bronze, Silver, or Release.");
+      }
+
+      if (seedTarget === "Release") {
+        var seedYear = inputValue("seedReleaseYear").trim();
+        if (["26", "27", "28", "29", "30"].indexOf(seedYear) === -1) {
+          throw new Error("Release year must be 26, 27, 28, 29, or 30.");
+        }
+
+        var seedMonth = inputValue("seedReleaseMonth").trim();
+        if (["01", "04", "07", "10"].indexOf(seedMonth) === -1) {
+          throw new Error("Release month must be 01, 04, 07, or 10.");
+        }
+      }
+
+      if (seedType === "Profile Option") {
+        if (!inputValue("profileOptionCode")) {
+          throw new Error("Enter Profile option code.");
+        }
+        if (!inputValue("profileOptionValue")) {
+          throw new Error("Enter Profile option value.");
+        }
+      } else if (!inputValue("messageSql")) {
+        throw new Error("Enter Message SQL.");
+      }
+      return;
+    }
+
+    if (workflow.id !== "alm-backport") {
       return;
     }
 
