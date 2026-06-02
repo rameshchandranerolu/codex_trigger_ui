@@ -114,7 +114,7 @@
         "summary": "Use BugDB MCP for explicit BugDB updates needed to fix validation when available; if MCP lacks field-update support, use dev-bugdb-helper for approved field updates, then rerun the same HCM bug validation command.",
         "instructions": [
           "Prefer BugDB MCP for existing bug updates when the needed field-update tool exists.",
-          "If MCP cannot update existing bug fields, use ~/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh for approved field updates only; the wrapper is pinned to /bin/python3.11 and global python3 must not be changed.",
+          "If MCP cannot update existing bug fields, use $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh for approved field updates only; CODEX_HOME should be /scratch/<runner-user>/.codex, the wrapper is pinned to /bin/python3.11, and global python3 must not be changed.",
           "Resolve friendly field labels such as Bug Fix ETA, Bug Fix By, or Component Version to exact BugDB API keys before constructing a bug-update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys.",
           "Do not print OAuth tokens or client secrets.",
           "After applying explicit BugDB follow-up instructions, rerun validation and keep gating until exit code 0 plus standalone PASS."
@@ -174,7 +174,7 @@
         "After pmc_wrapper finishes, verify the generated PMC HTML and premerge artifacts before reporting success.",
         "Treat PMC_CODE_ISSUE, PMC_CODE_ERROR, missing fusionapps/premerge/premerge_result.json, or a Central PMC section that contains only startup/initial checks as blocking.",
         "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, run \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"rnerolu_bug-{{bug}}\" manually in the same confirmed ADE view, capture output to a .txt file, and require exit code 0 plus standalone PASS.",
-        "When manual bug validation PASSes, upload the .txt output to BugDB with ~/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload {{bug}} <txt-file>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
+        "When manual bug validation PASSes, upload the .txt output to BugDB with $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload {{bug}} <txt-file>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
         "If any blocking PMC marker is present, do not report PMC success and do not proceed to mergereq; include CODEX_TRIGGER_STATUS: needs-input with the exact report path and blocker.",
         "Stop on the first failing command, report the command, exit code, and useful error text, and include CODEX_TRIGGER_STATUS: needs-input."
       ],
