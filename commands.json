@@ -163,7 +163,7 @@
       },
       "instructions": [
         "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",
-        "If starting outside the view, use the repo-local scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
+        "If starting outside the view, use the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
         "If ade cleanview is part of the PMC setup, after cleanview completes, exit out of that ADE view session and do not run any further commands in it; re-enter the same ADE view in a fresh session before ade pwv, ade lsco, ade expand, or pmc_wrapper.",
         "When using scripts/ade-scripts/RunInView.sh, cleanview must be its own invocation; include an explicit blocking re-entry command such as scripts/ade-scripts/RunInView.sh -view <view> -- \"cd $AVR; exit\" after cleanview. After that re-entry completes, batch sequential post-cleanview commands in one fresh local wrapper session, using inline output checks for required checkpoints; do not re-enter the view for every command.",
         "Never chain commands after cleanview in the same quoted command, shell, or ADE session.",
