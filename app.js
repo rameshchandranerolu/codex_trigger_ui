@@ -6,6 +6,7 @@
   var STORAGE_RUNNER = "codexTrigger.runner";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
+  var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
 
   var fallbackConfig = {
     github: {
@@ -95,7 +96,7 @@
       id: "seedDataTypeInput",
       label: "Seed Data Type",
       type: "select",
-      options: ["Profile Option", "Message"],
+      options: ["Profile Option", "Message", "Lookup"],
       taskLabel: "Seed Data Type"
     },
     seedTarget: {
@@ -127,6 +128,13 @@
       placeholder: "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml",
       taskLabel: "Seed file path"
     },
+    seedLba: {
+      id: "seedLbaInput",
+      label: "LBA",
+      placeholder: "HcmEmploymentTop",
+      defaultValue: "HcmEmploymentTop",
+      taskLabel: "LBA"
+    },
     bugDescription: {
       id: "bugDescriptionInput",
       label: "Bug description",
@@ -138,12 +146,14 @@
     profileOptionCode: {
       id: "profileOptionCodeInput",
       label: "Profile option code",
+      placeholder: "ORA_PER_EMPL_CLE_DASHBOARD_REDWOOD_ENABLED",
       taskLabel: "Profile option code",
       conditional: "profileOption"
     },
     profileOptionName: {
       id: "profileOptionNameInput",
       label: "Profile option name",
+      placeholder: "Enable Redwood Change Legal Employer Dashboard",
       taskLabel: "Profile option name",
       conditional: "profileOption"
     },
@@ -152,12 +162,14 @@
       label: "Profile option description",
       type: "textarea",
       rows: 4,
+      placeholder: "Enable the Redwood Change Legal Employer Dashboard.",
       taskLabel: "Profile option description",
       conditional: "profileOption"
     },
     profileOptionValue: {
       id: "profileOptionValueInput",
       label: "SITE profile option value",
+      placeholder: "N",
       taskLabel: "SITE profile option value",
       conditional: "profileOption"
     },
@@ -196,6 +208,7 @@
     profileOptionUserValue: {
       id: "profileOptionUserValueInput",
       label: "USER profile option value",
+      placeholder: "N",
       taskLabel: "USER profile option value",
       conditional: "profileOptionUserValue"
     },
@@ -204,6 +217,7 @@
       label: "SQL validation",
       type: "textarea",
       rows: 5,
+      placeholder: "SELECT meaning, lookup_code FROM hcm_lookups WHERE lookup_type='YES_NO' ORDER BY MEANING",
       taskLabel: "SQL validation",
       conditional: "profileOption"
     },
@@ -212,8 +226,46 @@
       label: "Message SQL",
       type: "textarea",
       rows: 8,
+      placeholder: "-- Example values from MessageSD.xml: MessageName=PER_ACTION_DUP_REASON; MessageType=ERROR; MessageText=You can't associate the same action reason twice with an action.",
       taskLabel: "Message SQL",
       conditional: "message"
+    },
+    lookupType: {
+      id: "lookupTypeInput",
+      label: "Lookup type",
+      placeholder: "BUDGET_MEASUREMENT_TYPE",
+      taskLabel: "Lookup type",
+      conditional: "lookup"
+    },
+    lookupMeaning: {
+      id: "lookupMeaningInput",
+      label: "Lookup meaning",
+      placeholder: "Work Measures Unit Type",
+      taskLabel: "Lookup meaning",
+      conditional: "lookup"
+    },
+    lookupDescription: {
+      id: "lookupDescriptionInput",
+      label: "Lookup description",
+      type: "textarea",
+      rows: 4,
+      placeholder: "Budget measurement types such as headcount or full time equivalent.",
+      taskLabel: "Lookup description",
+      conditional: "lookup"
+    },
+    lookupCode: {
+      id: "lookupCodeInput",
+      label: "Lookup code",
+      placeholder: "FTE",
+      taskLabel: "Lookup code",
+      conditional: "lookup"
+    },
+    lookupCodeMeaning: {
+      id: "lookupCodeMeaningInput",
+      label: "Lookup code meaning",
+      placeholder: "Full-time equivalent",
+      taskLabel: "Lookup code meaning",
+      conditional: "lookup"
     },
     bugComment: {
       id: "bugCommentInput",
@@ -608,11 +660,17 @@
   }
 
   function seedFileDefaultForType(type) {
-    return type === "Message" ? defaultMessageSeedFile : defaultProfileSeedFile;
+    if (type === "Message") {
+      return defaultMessageSeedFile;
+    }
+    if (type === "Lookup") {
+      return defaultLookupSeedFile;
+    }
+    return defaultProfileSeedFile;
   }
 
   function isDefaultSeedFile(value) {
-    return value === defaultProfileSeedFile || value === defaultMessageSeedFile;
+    return value === defaultProfileSeedFile || value === defaultMessageSeedFile || value === defaultLookupSeedFile;
   }
 
   function refreshSeedDataFields() {
@@ -639,6 +697,8 @@
         show = type === "Profile Option" && userEnabled === "Y";
       } else if (conditional === "message") {
         show = type === "Message";
+      } else if (conditional === "lookup") {
+        show = type === "Lookup";
       } else if (conditional === "seedRelease") {
         show = target === "Release";
       }
@@ -711,7 +771,7 @@
     return [
       '<label class="field"' + fieldAttrs + '>',
       "<span>" + escapeHtml(spec.label) + "</span>",
-      '<input id="' + spec.id + '" autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '">',
+      '<input id="' + spec.id + '" autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '" value="' + escapeHtml(spec.defaultValue || "") + '">',
       "</label>"
     ].join("");
   }
@@ -1062,6 +1122,9 @@
         if (seedConditional === "message" && inputValue("seedDataType") !== "Message") {
           return;
         }
+        if (seedConditional === "lookup" && inputValue("seedDataType") !== "Lookup") {
+          return;
+        }
       }
       var value = inputValue(fieldName);
       if (value) {
@@ -1249,8 +1312,8 @@
 
     if (workflow.id === "seeddata") {
       var seedType = inputValue("seedDataType").trim();
-      if (["Profile Option", "Message"].indexOf(seedType) === -1) {
-        throw new Error("Seed Data Type must be Profile Option or Message.");
+      if (["Profile Option", "Message", "Lookup"].indexOf(seedType) === -1) {
+        throw new Error("Seed Data Type must be Profile Option, Message, or Lookup.");
       }
 
       var seedTarget = inputValue("seedTarget").trim();
@@ -1294,8 +1357,26 @@
         if (inputValue("profileUserEnabled") === "Y" && !inputValue("profileOptionUserValue")) {
           throw new Error("Enter USER profile option value when User enabled is Y.");
         }
-      } else if (!inputValue("messageSql")) {
-        throw new Error("Enter Message SQL.");
+      } else if (seedType === "Message") {
+        if (!inputValue("messageSql")) {
+          throw new Error("Enter Message SQL.");
+        }
+      } else {
+        if (!inputValue("lookupType")) {
+          throw new Error("Enter Lookup type.");
+        }
+        if (!inputValue("lookupMeaning")) {
+          throw new Error("Enter Lookup meaning.");
+        }
+        if (!inputValue("lookupDescription")) {
+          throw new Error("Enter Lookup description.");
+        }
+        if (!inputValue("lookupCode")) {
+          throw new Error("Enter Lookup code.");
+        }
+        if (!inputValue("lookupCodeMeaning")) {
+          throw new Error("Enter Lookup code meaning.");
+        }
       }
       return;
     }

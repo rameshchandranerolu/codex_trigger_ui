@@ -197,22 +197,41 @@
     {
       "id": "mergereq.submit",
       "label": "Submit Merge Request",
-      "workflow": "ade",
+      "workflows": ["ade", "custom"],
       "order": 80,
       "template": "mergereq submit view={{view}} bug={{bug}} mode={{mode}} manager={{manager}} release={{release}} cc={{cc}}",
       "skill": "mergereq",
       "mcp": "mergereq",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "refreshview to latest label and submit mergereq",
+          "submit mergereq for bug 39448071",
+          "resend MergeReq after validation passed"
+        ],
+        "parameter_hints": [
+          "Use the current issue or resumed session context to infer the ADE view, active transaction, and bug when the follow-up does not repeat them.",
+          "Default missing mode to normal, default missing manager to alok.x.sahay@oracle.com, omit release when not supplied, and omit CC when not supplied.",
+          "If the requester asks to refreshview to latest label and submit MergeReq, include refreshview before submit in the proposed sequence.",
+          "If the same issue or resumed session already verified clean PMC/premerge evidence and uploaded PASS HCM bug-validation evidence for the unchanged transaction, do not include a separate repeat-evidence verification step."
+        ]
+      },
       "instructions": [
         "Use the mergereq skill for submission workflow, property checks, and command generation.",
         "Use Mergereq MCP tools for report-card details and current-transaction quality previews before submitting when available.",
-        "Before submitting or resending mergereq for HCM/ADE work, verify the latest PMC evidence for the active transaction.",
+        "For HCM/ADE MergeReq submit or resend, default missing mode to normal email submit, default missing manager to alok.x.sahay@oracle.com, omit release unless explicitly provided or required by mergereq, and omit CC unless explicitly provided. Do not ask for these values when they are omitted.",
+        "For mode=normal, generate the normal email-submit MergeReq command, not check-only and not db-only/no-mail.",
+        "Before submitting or resending mergereq for HCM/ADE work, verify the latest PMC evidence for the active transaction unless the same issue or resumed session already verified clean PMC/premerge evidence and uploaded PASS HCM bug-validation evidence for this unchanged transaction.",
+        "When that evidence is already verified and the transaction has not changed, do not add a separate repeat-evidence verification step before refreshview or MergeReq submit; perform only minimal read-only ADE state checks needed to execute the approved sequence.",
+        "If the requester asks to refreshview to the latest label and submit MergeReq, include refreshview before submit after the required approval is present.",
         "Do not submit mergereq when the latest PMC report has PMC_CODE_ISSUE, PMC_CODE_ERROR, missing premerge_result.json, or otherwise incomplete Central PMC results. If the only PMC concern is BUG Validation Status: INVALID, require manual HCM bug validation to PASS and upload the txt evidence to the bug first; report unresolved blockers with CODEX_TRIGGER_STATUS: needs-input instead."
       ],
       "parameters": [
         { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
         { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
-        { "name": "mode", "label": "Mode", "required": true, "default": "check", "options": ["check", "submit", "db-only", "no-mail"] },
-        { "name": "manager", "label": "Manager email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
+        { "name": "mode", "label": "Mode", "required": true, "default": "normal", "options": ["normal", "check", "db-only", "no-mail"] },
+        { "name": "manager", "label": "Manager email", "required": false, "default": "alok.x.sahay@oracle.com", "pattern": "^[A-Za-z0-9_.@+-]+$" },
         { "name": "release", "label": "Release email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
         { "name": "cc", "label": "CC emails", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
       ]

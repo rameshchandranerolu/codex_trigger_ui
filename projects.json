@@ -139,23 +139,24 @@
       "id": "seeddata",
       "name": "SeedData",
       "kind": "ADE",
-      "description": "Create approval-gated Profile Option or Message seed data changes.",
+      "description": "Create approval-gated Profile Option, Message, or Lookup seed data changes.",
       "requiresProject": true,
       "projectAliases": [
         "ade"
       ],
-      "context": "Approval-gated SeedData workflow. Seed Data Type is mandatory and controls the requested fields: Profile Option uses profile option code/name/description, SITE value, enabled/updatable flags, optional USER value when User enabled is Y, optional SQL validation text, and the default ProfileOptionSD.xml path; Message uses requester-supplied SQL and the default MessageSD.xml path. Profile option description maps to x_description in the create_profile SQL. Target codeline is Bronze, Silver, or Release; Release composes year/month as yy.mm. First run is read-only: validate /scratch/<user>/codeshare/dbdetails.txt, /scratch/<user>/codeshare/defaultreviewers.txt, and /scratch/<user>/codeshare/SeedDataComparator.class, resolve the branch, derive partitionkey_value from the seed XML when needed, and propose the exact BugDB, ADE, DB SQL, import/export, comparator, report upload, checkin, and OraReview sequence with CODEX_TRIGGER_STATUS: needs-input. After approval, proceed one step at a time and stop on any BugDB, ADE, SQL, comparator, upload, checkin, or OraReview failure.",
+      "context": "Approval-gated SeedData workflow. Seed Data Type is mandatory and controls the requested fields: Profile Option uses profile option code/name/description, SITE value, enabled/updatable flags, optional USER value when User enabled is Y, optional SQL validation text, and the default ProfileOptionSD.xml path; Message uses requester-supplied SQL and the default MessageSD.xml path; Lookup uses lookup type, lookup meaning, lookup description, one lookup code, lookup code meaning, default LBA HcmEmploymentTop, and the default CommonLookupTypeSD.xml path. Product is fixed as PER. Profile option description maps to x_description in the create_profile SQL. Use sibling codex_local_runner/seeddata_workflow.py to generate Lookup SQL, script seed types, and exact load/extract script commands; use loadSeedData.sh and extractSeedData.sh for Profile Option, Message, and Lookup instead of hand-building Java commands. Target codeline is Bronze, Silver, or Release; Release composes year/month as yy.mm. First run is read-only: validate /scratch/<user>/codeshare/dbdetails.txt, /scratch/<user>/codeshare/defaultreviewers.txt, and /scratch/<user>/codeshare/SeedDataComparator.class, parse DB host/port/service, resolve the branch, derive partitionkey_value from the seed XML when needed, and propose the exact BugDB, ADE, DB SQL, load/extract scripts, comparator, report upload, checkin, and OraReview sequence with CODEX_TRIGGER_STATUS: needs-input. Before running Lookup SQL, include and verify the FND_APPLICATION query confirming application_id 3 maps to PER; if not confirmed, stop with CODEX_TRIGGER_STATUS: needs-input. After approval, proceed one step at a time and stop on any BugDB, ADE, SQL, comparator, upload, checkin, or OraReview failure.",
       "operations": [
         {
           "id": "seed-data",
           "name": "Seed Data",
-          "description": "Prepare an approval-gated seed data change for Profile Option or Message seed data.",
+          "description": "Prepare an approval-gated seed data change for Profile Option, Message, or Lookup seed data.",
           "fields": [
             "seedDataType",
             "seedTarget",
             "seedReleaseYear",
             "seedReleaseMonth",
             "seedFilePath",
+            "seedLba",
             "bugDescription",
             "profileOptionCode",
             "profileOptionName",
@@ -168,6 +169,11 @@
             "profileOptionUserValue",
             "profileValidationSql",
             "messageSql",
+            "lookupType",
+            "lookupMeaning",
+            "lookupDescription",
+            "lookupCode",
+            "lookupCodeMeaning",
             "details"
           ],
           "requiredFields": [
