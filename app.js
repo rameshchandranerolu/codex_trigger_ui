@@ -253,18 +253,13 @@
       taskLabel: "Lookup description",
       conditional: "lookup"
     },
-    lookupCode: {
-      id: "lookupCodeInput",
-      label: "Lookup code",
-      placeholder: "FTE",
-      taskLabel: "Lookup code",
-      conditional: "lookup"
-    },
-    lookupCodeMeaning: {
-      id: "lookupCodeMeaningInput",
-      label: "Lookup code meaning",
-      placeholder: "Full-time equivalent",
-      taskLabel: "Lookup code meaning",
+    lookupValues: {
+      id: "lookupValuesInput",
+      label: "Lookup values",
+      type: "textarea",
+      rows: 8,
+      placeholder: "JAN - January\nFEB - February\nMAR - March",
+      taskLabel: "Lookup values",
       conditional: "lookup"
     },
     bugComment: {
@@ -1371,11 +1366,8 @@
         if (!inputValue("lookupDescription")) {
           throw new Error("Enter Lookup description.");
         }
-        if (!inputValue("lookupCode")) {
-          throw new Error("Enter Lookup code.");
-        }
-        if (!inputValue("lookupCodeMeaning")) {
-          throw new Error("Enter Lookup code meaning.");
+        if (!inputValue("lookupValues")) {
+          throw new Error("Enter Lookup values.");
         }
       }
       return;
