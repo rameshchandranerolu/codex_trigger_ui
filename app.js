@@ -7,6 +7,7 @@
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
+  var defaultValueSetSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/ValueSetSD.xml";
 
   var fallbackConfig = {
     github: {
@@ -96,7 +97,7 @@
       id: "seedDataTypeInput",
       label: "Seed Data Type",
       type: "select",
-      options: ["Profile Option", "Message", "Lookup"],
+      options: ["Profile Option", "Message", "Lookup", "Value Set"],
       taskLabel: "Seed Data Type"
     },
     seedTarget: {
@@ -134,6 +135,12 @@
       placeholder: "HcmEmploymentTop",
       defaultValue: "HcmEmploymentTop",
       taskLabel: "LBA"
+    },
+    existingBugNumber: {
+      id: "existingBugNumberInput",
+      label: "Existing bug number",
+      placeholder: "39483803",
+      taskLabel: "Existing bug number"
     },
     bugDescription: {
       id: "bugDescriptionInput",
@@ -661,11 +668,14 @@
     if (type === "Lookup") {
       return defaultLookupSeedFile;
     }
+    if (type === "Value Set") {
+      return defaultValueSetSeedFile;
+    }
     return defaultProfileSeedFile;
   }
 
   function isDefaultSeedFile(value) {
-    return value === defaultProfileSeedFile || value === defaultMessageSeedFile || value === defaultLookupSeedFile;
+    return value === defaultProfileSeedFile || value === defaultMessageSeedFile || value === defaultLookupSeedFile || value === defaultValueSetSeedFile;
   }
 
   function refreshSeedDataFields() {
@@ -1307,8 +1317,8 @@
 
     if (workflow.id === "seeddata") {
       var seedType = inputValue("seedDataType").trim();
-      if (["Profile Option", "Message", "Lookup"].indexOf(seedType) === -1) {
-        throw new Error("Seed Data Type must be Profile Option, Message, or Lookup.");
+      if (["Profile Option", "Message", "Lookup", "Value Set"].indexOf(seedType) === -1) {
+        throw new Error("Seed Data Type must be Profile Option, Message, Lookup, or Value Set.");
       }
 
       var seedTarget = inputValue("seedTarget").trim();
@@ -1326,6 +1336,14 @@
         if (["01", "04", "07", "10"].indexOf(seedMonth) === -1) {
           throw new Error("Release month must be 01, 04, 07, or 10.");
         }
+      }
+
+      var existingBugNumber = inputValue("existingBugNumber").trim();
+      if (existingBugNumber && !/^[0-9]+$/.test(existingBugNumber)) {
+        throw new Error("Existing bug number must contain digits only.");
+      }
+      if (!existingBugNumber && !inputValue("bugDescription")) {
+        throw new Error("Enter Bug description.");
       }
 
       if (seedType === "Profile Option") {
@@ -1356,7 +1374,7 @@
         if (!inputValue("messageSql")) {
           throw new Error("Enter Message SQL.");
         }
-      } else {
+      } else if (seedType === "Lookup") {
         if (!inputValue("lookupType")) {
           throw new Error("Enter Lookup type.");
         }
