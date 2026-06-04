@@ -5,6 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
+  var ASSET_VERSION = "20260604-model-presets";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -429,13 +430,13 @@
   function loadConfig() {
     setStatus("Loading", "busy");
     Promise.all([
-      fetch("./projects.json", { cache: "no-store" }).then(function (response) {
+      fetch(assetUrl("./projects.json"), { cache: "no-store" }).then(function (response) {
         if (!response.ok) {
           throw new Error("Unable to load projects.json");
         }
         return response.json();
       }),
-      fetch("./commands.json", { cache: "no-store" }).then(function (response) {
+      fetch(assetUrl("./commands.json"), { cache: "no-store" }).then(function (response) {
         if (!response.ok) {
           return { commands: [] };
         }
@@ -500,6 +501,10 @@
         updatePreview();
         setStatus("Using fallback", "error");
       });
+  }
+
+  function assetUrl(path) {
+    return path + "?v=" + encodeURIComponent(ASSET_VERSION);
   }
 
   function updateRepoLabel() {
