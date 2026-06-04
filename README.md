@@ -21,6 +21,11 @@ the label in the issue screen, the generated `Queue: codex:queued` body line is
 still enough for the VM runner to pick up the trigger after the runner update is
 deployed.
 
+The Model selector writes `Codex-Model: <preset-id>` into the issue body. The
+default `cheap-default` preset keeps the current low-cost runner settings, while
+`gpt-5.5-priority` is an explicit Pro preset for difficult debugging or code
+logic checks.
+
 It does not contain the VM runner, BugDB helpers, `config.json`, OAuth tokens,
 GitHub personal access tokens, or local ALM paths. The browser UI does not call
 the GitHub API and does not ask users to paste a token.

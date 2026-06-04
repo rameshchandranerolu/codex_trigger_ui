@@ -20,6 +20,23 @@
       }
     ]
   },
+  "codexModelPresets": [
+    {
+      "id": "cheap-default",
+      "label": "Cheap default",
+      "model": "gpt-5.5",
+      "reasoningEffort": "medium",
+      "serviceTier": "instant",
+      "default": true
+    },
+    {
+      "id": "gpt-5.5-priority",
+      "label": "GPT-5.5 Priority",
+      "model": "gpt-5.5",
+      "reasoningEffort": "xhigh",
+      "serviceTier": "priority"
+    }
+  ],
   "workflows": [
     {
       "id": "project",

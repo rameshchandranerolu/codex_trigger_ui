@@ -4,6 +4,7 @@
   var STORAGE_OWNER = "codexTrigger.owner";
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
+  var STORAGE_MODEL = "codexTrigger.modelPreset";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -29,6 +30,23 @@
         }
       ]
     },
+    codexModelPresets: [
+      {
+        id: "cheap-default",
+        label: "Cheap default",
+        model: "gpt-5.5",
+        reasoningEffort: "medium",
+        serviceTier: "instant",
+        default: true
+      },
+      {
+        id: "gpt-5.5-priority",
+        label: "GPT-5.5 Priority",
+        model: "gpt-5.5",
+        reasoningEffort: "xhigh",
+        serviceTier: "priority"
+      }
+    ],
     workflows: [
       {
         id: "project",
@@ -325,12 +343,14 @@
     projects: [],
     commands: [],
     runners: [],
+    modelPresets: [],
     selectedCommands: [],
     commandSerial: 0,
     selectedWorkflowId: "",
     selectedOperationId: "",
     selectedProjectAlias: "",
-    selectedRunnerId: ""
+    selectedRunnerId: "",
+    selectedModelPresetId: ""
   };
 
   var els = {};
@@ -351,6 +371,7 @@
       "projectList",
       "selectedProjectLabel",
       "runnerSelect",
+      "modelPresetSelect",
       "ownerInput",
       "repoInput",
       "dynamicFields",
@@ -376,6 +397,12 @@
         updatePreview();
       });
     }
+    if (els.modelPresetSelect) {
+      els.modelPresetSelect.addEventListener("change", function () {
+        state.selectedModelPresetId = els.modelPresetSelect.value;
+        updatePreview();
+      });
+    }
 
     [
       els.ownerInput,
@@ -394,6 +421,7 @@
   function loadLocalSettings() {
     localStorage.removeItem("codexTrigger.githubToken");
     state.selectedRunnerId = localStorage.getItem(STORAGE_RUNNER) || "";
+    state.selectedModelPresetId = localStorage.getItem(STORAGE_MODEL) || "";
     els.ownerInput.value = localStorage.getItem(STORAGE_OWNER) || "";
     els.repoInput.value = localStorage.getItem(STORAGE_REPO) || "";
   }
@@ -424,10 +452,15 @@
         state.projects = Array.isArray(config.projects) ? config.projects : [];
         state.commands = Array.isArray(commandConfig.commands) ? commandConfig.commands : [];
         state.runners = githubRunners(config);
+        state.modelPresets = codexModelPresets(config);
         if (!runnerById(state.selectedRunnerId)) {
           state.selectedRunnerId = state.runners.length ? state.runners[0].id : "";
         }
+        if (!modelPresetById(state.selectedModelPresetId)) {
+          state.selectedModelPresetId = defaultModelPresetId();
+        }
         renderRunnerSelect();
+        renderModelPresetSelect();
         applySelectedRunner(false);
         if (!state.workflows.length) {
           throw new Error("projects.json must define workflows");
@@ -450,10 +483,15 @@
         state.projects = fallbackConfig.projects;
         state.commands = fallbackConfig.commands;
         state.runners = githubRunners(fallbackConfig);
+        state.modelPresets = codexModelPresets(fallbackConfig);
         if (!runnerById(state.selectedRunnerId)) {
           state.selectedRunnerId = state.runners.length ? state.runners[0].id : "";
         }
+        if (!modelPresetById(state.selectedModelPresetId)) {
+          state.selectedModelPresetId = defaultModelPresetId();
+        }
         renderRunnerSelect();
+        renderModelPresetSelect();
         applySelectedRunner(false);
         state.selectedCommands = [];
         selectWorkflow(state.workflows[0].id);
@@ -493,6 +531,35 @@
     });
   }
 
+  function codexModelPresets(config) {
+    var presets = config && Array.isArray(config.codexModelPresets) ? config.codexModelPresets : [];
+    if (!presets.length) {
+      presets = fallbackConfig.codexModelPresets;
+    }
+    return presets.map(function (preset, index) {
+      return {
+        id: String(preset.id || "preset" + (index + 1)),
+        label: String(preset.label || preset.name || preset.id || "Preset " + (index + 1)),
+        model: String(preset.model || ""),
+        reasoningEffort: String(preset.reasoningEffort || preset.reasoning_effort || ""),
+        serviceTier: String(preset.serviceTier || preset.service_tier || ""),
+        default: Boolean(preset.default)
+      };
+    }).filter(function (preset) {
+      return preset.id && preset.model;
+    });
+  }
+
+  function defaultModelPresetId() {
+    var found = state.modelPresets.find(function (preset) {
+      return preset.default;
+    });
+    if (found) {
+      return found.id;
+    }
+    return state.modelPresets.length ? state.modelPresets[0].id : "";
+  }
+
   function renderRunnerSelect() {
     if (!els.runnerSelect) {
       return;
@@ -504,13 +571,34 @@
     els.runnerSelect.value = state.selectedRunnerId;
   }
 
+  function renderModelPresetSelect() {
+    if (!els.modelPresetSelect) {
+      return;
+    }
+    els.modelPresetSelect.innerHTML = state.modelPresets.map(function (preset) {
+      var selected = preset.id === state.selectedModelPresetId ? " selected" : "";
+      return '<option value="' + escapeHtml(preset.id) + '"' + selected + ">" + escapeHtml(preset.label) + "</option>";
+    }).join("");
+    els.modelPresetSelect.value = state.selectedModelPresetId;
+  }
+
   function selectedRunner() {
     return runnerById(state.selectedRunnerId) || (state.runners.length ? state.runners[0] : null);
+  }
+
+  function selectedModelPreset() {
+    return modelPresetById(state.selectedModelPresetId) || (state.modelPresets.length ? state.modelPresets[0] : null);
   }
 
   function runnerById(runnerId) {
     return state.runners.find(function (runner) {
       return runner.id === runnerId;
+    }) || null;
+  }
+
+  function modelPresetById(presetId) {
+    return state.modelPresets.find(function (preset) {
+      return preset.id === presetId;
     }) || null;
   }
 
@@ -1229,6 +1317,9 @@
       "",
       "Workflow: " + (workflow ? workflow.id : "")
     ];
+    if (selectedModelPreset()) {
+      lines.push("Codex-Model: " + selectedModelPreset().id);
+    }
 
     if (operation) {
       lines.push("Operation: " + operation.id);
@@ -1274,6 +1365,7 @@
     localStorage.setItem(STORAGE_OWNER, els.ownerInput.value.trim());
     localStorage.setItem(STORAGE_REPO, els.repoInput.value.trim());
     localStorage.setItem(STORAGE_RUNNER, state.selectedRunnerId);
+    localStorage.setItem(STORAGE_MODEL, state.selectedModelPresetId);
   }
 
   function validateForm() {
@@ -1289,6 +1381,9 @@
     }
     if (!workflow) {
       throw new Error("Select a workflow.");
+    }
+    if (!selectedModelPreset()) {
+      throw new Error("Select a model.");
     }
     if (workflowHasOperations(workflow) && !operation) {
       throw new Error("Select an operation.");
