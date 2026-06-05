@@ -5,11 +5,14 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260604-model-presets";
+  var ASSET_VERSION = "20260605-seeddata-staging";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
   var defaultValueSetSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/ValueSetSD.xml";
+  var defaultStagingDbUrl = "(DESCRIPTION=(SOURCE_ROUTE=YES)(ADDRESS=(PROTOCOL=TCP)(HOST=faeops-oci-cman.oraclecorp.com)(PORT=1999))(ADDRESS=(PROTOCOL=TCP)(HOST=phx00041-8xib5-scan.dbfepint.adpdb01phxpint.oraclevcn.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=uspjiamp_f_fb)))";
+  var defaultStagingUsername = "fusion_read_only";
+  var defaultStagingPassword = "Welcome1!";
 
   var fallbackConfig = {
     github: {
@@ -168,6 +171,45 @@
       rows: 6,
       placeholder: "Short BugDB subject/description",
       taskLabel: "Bug description"
+    },
+    copyFromStaging: {
+      id: "copyFromStagingInput",
+      label: "Copy from staging",
+      type: "select",
+      options: ["No", "Yes"],
+      taskLabel: "Copy from staging",
+      conditional: "stagingCopySupported"
+    },
+    stagingDbUrl: {
+      id: "stagingDbUrlInput",
+      label: "Staging URL",
+      type: "textarea",
+      rows: 4,
+      defaultValue: defaultStagingDbUrl,
+      taskLabel: "Staging URL",
+      conditional: "stagingCopy"
+    },
+    stagingUsername: {
+      id: "stagingUsernameInput",
+      label: "Staging username",
+      defaultValue: defaultStagingUsername,
+      taskLabel: "Staging username",
+      conditional: "stagingCopy"
+    },
+    stagingPassword: {
+      id: "stagingPasswordInput",
+      label: "Staging password",
+      inputType: "password",
+      defaultValue: defaultStagingPassword,
+      taskLabel: "Staging password",
+      conditional: "stagingCopy"
+    },
+    stagingKey: {
+      id: "stagingKeyInput",
+      label: "Staging key",
+      placeholder: "ORA_PER_RETGRD_GRADE_LADDER_VS",
+      taskLabel: "Staging key",
+      conditional: "stagingCopy"
     },
     profileOptionCode: {
       id: "profileOptionCodeInput",
@@ -771,6 +813,52 @@
     return value === defaultProfileSeedFile || value === defaultMessageSeedFile || value === defaultLookupSeedFile || value === defaultValueSetSeedFile;
   }
 
+  function supportsStagingCopy(type) {
+    return type === "Profile Option" || type === "Lookup" || type === "Value Set";
+  }
+
+  function seeddataCopyFromStagingYes() {
+    return supportsStagingCopy(inputValue("seedDataType")) && inputValue("copyFromStaging") === "Yes";
+  }
+
+  function stagingKeyLabelForType(type) {
+    if (type === "Profile Option") {
+      return "Profile option code";
+    }
+    if (type === "Lookup") {
+      return "Lookup type";
+    }
+    if (type === "Value Set") {
+      return "Value set code";
+    }
+    return "Staging key";
+  }
+
+  function setFieldLabel(fieldName, label) {
+    var spec = fieldSpecs[fieldName];
+    var element = spec ? document.getElementById(spec.id) : null;
+    var field = element ? element.closest("[data-field-name]") : null;
+    var span = field ? field.querySelector("span") : null;
+    if (span) {
+      span.textContent = label;
+    }
+  }
+
+  function ensureStagingDefaults() {
+    var stagingDbUrl = document.getElementById("stagingDbUrlInput");
+    var stagingUsername = document.getElementById("stagingUsernameInput");
+    var stagingPassword = document.getElementById("stagingPasswordInput");
+    if (stagingDbUrl && !stagingDbUrl.value.trim()) {
+      stagingDbUrl.value = defaultStagingDbUrl;
+    }
+    if (stagingUsername && !stagingUsername.value.trim()) {
+      stagingUsername.value = defaultStagingUsername;
+    }
+    if (stagingPassword && !stagingPassword.value.trim()) {
+      stagingPassword.value = defaultStagingPassword;
+    }
+  }
+
   function refreshSeedDataFields() {
     var workflow = selectedWorkflow();
     if (!workflow || workflow.id !== "seeddata") {
@@ -783,6 +871,14 @@
     var target = targetInput ? targetInput.value : "Bronze";
     var userEnabledInput = document.getElementById("profileUserEnabledInput");
     var userEnabled = userEnabledInput ? userEnabledInput.value : "N";
+    var copyInput = document.getElementById("copyFromStagingInput");
+    var canCopyFromStaging = supportsStagingCopy(type);
+    if (copyInput && !canCopyFromStaging) {
+      copyInput.value = "No";
+    }
+    ensureStagingDefaults();
+    var copyFromStaging = canCopyFromStaging && copyInput && copyInput.value === "Yes";
+    setFieldLabel("stagingKey", stagingKeyLabelForType(type));
     if (seedFileInput && (!seedFileInput.value.trim() || isDefaultSeedFile(seedFileInput.value.trim()))) {
       seedFileInput.value = seedFileDefaultForType(type);
     }
@@ -790,15 +886,19 @@
       var conditional = field.getAttribute("data-conditional");
       var show = true;
       if (conditional === "profileOption") {
-        show = type === "Profile Option";
+        show = type === "Profile Option" && !copyFromStaging;
       } else if (conditional === "profileOptionUserValue") {
-        show = type === "Profile Option" && userEnabled === "Y";
+        show = type === "Profile Option" && !copyFromStaging && userEnabled === "Y";
       } else if (conditional === "message") {
         show = type === "Message";
       } else if (conditional === "lookup") {
-        show = type === "Lookup";
+        show = type === "Lookup" && !copyFromStaging;
       } else if (conditional === "seedRelease") {
         show = target === "Release";
+      } else if (conditional === "stagingCopySupported") {
+        show = canCopyFromStaging;
+      } else if (conditional === "stagingCopy") {
+        show = copyFromStaging;
       }
       field.hidden = !show;
       field.style.display = show ? "" : "none";
@@ -852,7 +952,8 @@
         "<span>" + escapeHtml(spec.label) + "</span>",
         '<select id="' + spec.id + '">',
         (spec.options || []).map(function (option) {
-          return '<option value="' + escapeHtml(option) + '">' + escapeHtml(option) + "</option>";
+          var selected = spec.defaultValue !== undefined && String(option) === String(spec.defaultValue) ? " selected" : "";
+          return '<option value="' + escapeHtml(option) + '"' + selected + ">" + escapeHtml(option) + "</option>";
         }).join(""),
         "</select>",
         "</label>"
@@ -862,14 +963,15 @@
       return [
         '<label class="field"' + fieldAttrs + '>',
         "<span>" + escapeHtml(spec.label) + "</span>",
-        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '"></textarea>',
+        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '">' + escapeHtml(spec.defaultValue || "") + "</textarea>",
         "</label>"
       ].join("");
     }
+    var inputType = spec.inputType ? ' type="' + escapeHtml(spec.inputType) + '"' : "";
     return [
       '<label class="field"' + fieldAttrs + '>',
       "<span>" + escapeHtml(spec.label) + "</span>",
-      '<input id="' + spec.id + '" autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '" value="' + escapeHtml(spec.defaultValue || "") + '">',
+      '<input id="' + spec.id + '"' + inputType + ' autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '" value="' + escapeHtml(spec.defaultValue || "") + '">',
       "</label>"
     ].join("");
   }
@@ -1208,25 +1310,37 @@
       }
       if (workflow && workflow.id === "seeddata") {
         var seedConditional = fieldSpecs[fieldName] && fieldSpecs[fieldName].conditional;
+        var seedType = inputValue("seedDataType");
+        var copyFromStaging = seeddataCopyFromStagingYes();
         if (seedConditional === "seedRelease") {
           return;
         }
-        if (seedConditional === "profileOption" && inputValue("seedDataType") !== "Profile Option") {
+        if (seedConditional === "profileOption" && (seedType !== "Profile Option" || copyFromStaging)) {
           return;
         }
-        if (seedConditional === "profileOptionUserValue" && (inputValue("seedDataType") !== "Profile Option" || inputValue("profileUserEnabled") !== "Y")) {
+        if (seedConditional === "profileOptionUserValue" && (seedType !== "Profile Option" || copyFromStaging || inputValue("profileUserEnabled") !== "Y")) {
           return;
         }
-        if (seedConditional === "message" && inputValue("seedDataType") !== "Message") {
+        if (seedConditional === "message" && seedType !== "Message") {
           return;
         }
-        if (seedConditional === "lookup" && inputValue("seedDataType") !== "Lookup") {
+        if (seedConditional === "lookup" && (seedType !== "Lookup" || copyFromStaging)) {
+          return;
+        }
+        if (seedConditional === "stagingCopySupported" && !supportsStagingCopy(seedType)) {
+          return;
+        }
+        if (seedConditional === "stagingCopy" && !copyFromStaging) {
           return;
         }
       }
       var value = inputValue(fieldName);
       if (value) {
-        lines.push((fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName) + ": " + value);
+        var taskLabel = fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName;
+        if (workflow && workflow.id === "seeddata" && fieldName === "stagingKey") {
+          taskLabel = stagingKeyLabelForType(inputValue("seedDataType"));
+        }
+        lines.push(taskLabel + ": " + value);
       }
     });
 
@@ -1444,6 +1558,27 @@
       }
       if (!existingBugNumber && !inputValue("bugDescription")) {
         throw new Error("Enter Bug description.");
+      }
+
+      var copyChoice = inputValue("copyFromStaging");
+      var copyFromStaging = supportsStagingCopy(seedType) && copyChoice === "Yes";
+      if (copyChoice === "Yes" && !supportsStagingCopy(seedType)) {
+        throw new Error("Copy from staging is supported only for Profile Option, Lookup, and Value Set.");
+      }
+      if (copyFromStaging) {
+        if (!inputValue("stagingDbUrl")) {
+          throw new Error("Enter Staging URL.");
+        }
+        if (!inputValue("stagingUsername")) {
+          throw new Error("Enter Staging username.");
+        }
+        if (!inputValue("stagingPassword")) {
+          throw new Error("Enter Staging password.");
+        }
+        if (!inputValue("stagingKey")) {
+          throw new Error("Enter " + stagingKeyLabelForType(seedType) + ".");
+        }
+        return;
       }
 
       if (seedType === "Profile Option") {
