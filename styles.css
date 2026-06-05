@@ -172,6 +172,27 @@ button {
   line-height: 1.45;
 }
 
+.lookup-values-grid {
+  display: grid;
+  gap: 8px;
+}
+
+.lookup-value-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.9fr) minmax(180px, 1.4fr) minmax(110px, 0.7fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.lookup-row-remove {
+  white-space: nowrap;
+}
+
+.lookup-values-actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
 .field input:focus,
 .field select:focus,
 .field textarea:focus {
@@ -466,6 +487,7 @@ button {
 
   .form-grid,
   .mode-grid,
+  .lookup-value-row,
   .command-param-grid {
     grid-template-columns: 1fr;
   }

@@ -5,12 +5,14 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260605-seeddata-staging";
+  var ASSET_VERSION = "20260605-seeddata-lookup-rows";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
   var defaultValueSetSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/ValueSetSD.xml";
   var defaultStagingDbUrl = "(DESCRIPTION=(SOURCE_ROUTE=YES)(ADDRESS=(PROTOCOL=TCP)(HOST=faeops-oci-cman.oraclecorp.com)(PORT=1999))(ADDRESS=(PROTOCOL=TCP)(HOST=phx00041-8xib5-scan.dbfepint.adpdb01phxpint.oraclevcn.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=uspjiamp_f_fb)))";
+  var defaultStagingEnvironmentName = "Bronze Manual";
+  var customStagingEnvironmentName = "Custom";
   var defaultStagingUsername = "fusion_read_only";
   var defaultStagingPassword = "Welcome1!";
 
@@ -180,12 +182,22 @@
       taskLabel: "Copy from staging",
       conditional: "stagingCopySupported"
     },
+    stagingEnvironment: {
+      id: "stagingEnvironmentInput",
+      label: "Staging environment",
+      type: "select",
+      options: ["Bronze Manual", "Bronze Cookie Cutter", "Silver Manual", "Custom"],
+      defaultValue: defaultStagingEnvironmentName,
+      taskLabel: "Staging environment",
+      conditional: "stagingCopy"
+    },
     stagingDbUrl: {
       id: "stagingDbUrlInput",
-      label: "Staging URL",
+      label: "Staging environment URL",
       type: "textarea",
       rows: 4,
       defaultValue: defaultStagingDbUrl,
+      readOnly: true,
       taskLabel: "Staging URL",
       conditional: "stagingCopy"
     },
@@ -324,9 +336,7 @@
     lookupValues: {
       id: "lookupValuesInput",
       label: "Lookup values",
-      type: "textarea",
-      rows: 8,
-      placeholder: "JAN - January\nFEB - February\nMAR - March",
+      type: "lookupRows",
       taskLabel: "Lookup values",
       conditional: "lookup"
     },
@@ -393,7 +403,8 @@
     selectedOperationId: "",
     selectedProjectAlias: "",
     selectedRunnerId: "",
-    selectedModelPresetId: ""
+    selectedModelPresetId: "",
+    stagingEnvironments: null
   };
 
   var els = {};
@@ -485,15 +496,26 @@
         return response.json();
       }).catch(function () {
         return { commands: [] };
+      }),
+      fetch(assetUrl("./seeddata_staging_environments.json"), { cache: "no-store" }).then(function (response) {
+        if (!response.ok) {
+          return {};
+        }
+        return response.json();
+      }).catch(function () {
+        return {};
       })
     ])
       .then(function (response) {
         var config = response[0];
         var commandConfig = response[1] || {};
+        var stagingConfig = response[2] || {};
         state.config = config;
         state.workflows = Array.isArray(config.workflows) ? config.workflows : [];
         state.projects = Array.isArray(config.projects) ? config.projects : [];
         state.commands = Array.isArray(commandConfig.commands) ? commandConfig.commands : [];
+        state.stagingEnvironments = normalizeStagingEnvironments(stagingConfig);
+        updateStagingEnvironmentOptions();
         state.runners = githubRunners(config);
         state.modelPresets = codexModelPresets(config);
         if (!runnerById(state.selectedRunnerId)) {
@@ -525,6 +547,8 @@
         state.workflows = fallbackConfig.workflows;
         state.projects = fallbackConfig.projects;
         state.commands = fallbackConfig.commands;
+        state.stagingEnvironments = defaultStagingEnvironments();
+        updateStagingEnvironmentOptions();
         state.runners = githubRunners(fallbackConfig);
         state.modelPresets = codexModelPresets(fallbackConfig);
         if (!runnerById(state.selectedRunnerId)) {
@@ -547,6 +571,165 @@
 
   function assetUrl(path) {
     return path + "?v=" + encodeURIComponent(ASSET_VERSION);
+  }
+
+  function defaultStagingEnvironments() {
+    var environments = {};
+    environments[defaultStagingEnvironmentName] = defaultStagingDbUrl;
+    environments["Bronze Cookie Cutter"] = "";
+    environments["Silver Manual"] = "";
+    return environments;
+  }
+
+  function normalizeStagingEnvironments(raw) {
+    var environments = {};
+    Object.keys(raw || {}).forEach(function (name) {
+      var trimmedName = String(name || "").trim();
+      if (trimmedName) {
+        environments[trimmedName] = String(raw[name] || "").trim();
+      }
+    });
+    return Object.keys(environments).length ? environments : defaultStagingEnvironments();
+  }
+
+  function stagingEnvironments() {
+    return normalizeStagingEnvironments(state.stagingEnvironments || defaultStagingEnvironments());
+  }
+
+  function stagingEnvironmentNames() {
+    return Object.keys(stagingEnvironments());
+  }
+
+  function updateStagingEnvironmentOptions() {
+    var names = stagingEnvironmentNames();
+    fieldSpecs.stagingEnvironment.options = names.concat([customStagingEnvironmentName]);
+    if (fieldSpecs.stagingEnvironment.options.indexOf(defaultStagingEnvironmentName) !== -1) {
+      fieldSpecs.stagingEnvironment.defaultValue = defaultStagingEnvironmentName;
+    } else {
+      fieldSpecs.stagingEnvironment.defaultValue = names[0] || customStagingEnvironmentName;
+    }
+  }
+
+  function stagingUrlForEnvironment(name) {
+    var environments = stagingEnvironments();
+    return String(environments[name] || "").trim();
+  }
+
+  function updateStagingUrlFromEnvironment() {
+    var environmentInput = document.getElementById("stagingEnvironmentInput");
+    var stagingDbUrl = document.getElementById("stagingDbUrlInput");
+    if (!stagingDbUrl) {
+      return;
+    }
+    var environment = environmentInput ? environmentInput.value : defaultStagingEnvironmentName;
+    var isCustom = environment === customStagingEnvironmentName;
+    stagingDbUrl.readOnly = !isCustom;
+    if (isCustom) {
+      if (!stagingDbUrl.value.trim()) {
+        stagingDbUrl.value = defaultStagingDbUrl;
+      }
+      return;
+    }
+    stagingDbUrl.value = stagingUrlForEnvironment(environment);
+  }
+
+  function lookupValueRowHtml(row) {
+    row = row || {};
+    return [
+      '<div class="lookup-value-row">',
+      '<input class="lookup-code-input" autocomplete="off" spellcheck="false" placeholder="JAN" value="' + escapeHtml(row.code || "") + '">',
+      '<input class="lookup-meaning-input" autocomplete="off" spellcheck="false" placeholder="January" value="' + escapeHtml(row.meaning || "") + '">',
+      '<input class="lookup-sequence-input" autocomplete="off" inputmode="numeric" placeholder="1" value="' + escapeHtml(row.displaySequence || "") + '">',
+      '<button class="secondary-button lookup-row-remove" type="button">Remove</button>',
+      "</div>"
+    ].join("");
+  }
+
+  function lookupRowsHtml(fieldAttrs) {
+    return [
+      '<div class="field wide lookup-values-field"' + fieldAttrs + '>',
+      "<span>Lookup values</span>",
+      '<div id="lookupValuesRows" class="lookup-values-grid">',
+      lookupValueRowHtml(),
+      "</div>",
+      '<div class="lookup-values-actions">',
+      '<button id="addLookupValueRowButton" class="secondary-button" type="button">Add row</button>',
+      "</div>",
+      '<textarea id="lookupValuesInput" hidden></textarea>',
+      "</div>"
+    ].join("");
+  }
+
+  function ensureLookupValueRows() {
+    var rows = document.getElementById("lookupValuesRows");
+    if (rows && !rows.children.length) {
+      rows.innerHTML = lookupValueRowHtml();
+    }
+  }
+
+  function lookupValueLinesFromRows() {
+    var rows = document.getElementById("lookupValuesRows");
+    if (!rows) {
+      return [];
+    }
+    var lines = [];
+    Array.prototype.forEach.call(rows.querySelectorAll(".lookup-value-row"), function (row, index) {
+      var code = row.querySelector(".lookup-code-input").value.trim();
+      var meaning = row.querySelector(".lookup-meaning-input").value.trim();
+      var sequence = row.querySelector(".lookup-sequence-input").value.trim();
+      if (!code && !meaning && !sequence) {
+        return;
+      }
+      if (!code) {
+        throw new Error("Lookup value row " + (index + 1) + " is missing key");
+      }
+      if (!meaning) {
+        throw new Error("Lookup value row " + (index + 1) + " is missing value");
+      }
+      if (sequence && !/^[0-9]+$/.test(sequence)) {
+        throw new Error("Lookup value row " + (index + 1) + " display sequence must contain digits only");
+      }
+      lines.push(code + " - " + meaning + (sequence ? " - " + sequence : ""));
+    });
+    return lines;
+  }
+
+  function syncLookupValuesField() {
+    var input = document.getElementById("lookupValuesInput");
+    if (!input) {
+      return;
+    }
+    try {
+      input.value = lookupValueLinesFromRows().join("\n");
+    } catch (error) {
+      input.value = "";
+    }
+  }
+
+  function bindLookupValueRows() {
+    var rows = document.getElementById("lookupValuesRows");
+    var addButton = document.getElementById("addLookupValueRowButton");
+    if (!rows || !addButton) {
+      return;
+    }
+    addButton.addEventListener("click", function () {
+      rows.insertAdjacentHTML("beforeend", lookupValueRowHtml());
+      syncLookupValuesField();
+      updatePreview();
+    });
+    rows.addEventListener("input", function () {
+      syncLookupValuesField();
+      updatePreview();
+    });
+    rows.addEventListener("click", function (event) {
+      if (event.target && event.target.classList.contains("lookup-row-remove")) {
+        event.target.closest(".lookup-value-row").remove();
+        ensureLookupValueRows();
+        syncLookupValuesField();
+        updatePreview();
+      }
+    });
+    syncLookupValuesField();
   }
 
   function updateRepoLabel() {
@@ -791,6 +974,7 @@
         updatePreview();
       });
     });
+    bindLookupValueRows();
     refreshSeedDataFields();
     updateSelectedWorkflowLabel();
     renderCommandBuilder();
@@ -845,12 +1029,9 @@
   }
 
   function ensureStagingDefaults() {
-    var stagingDbUrl = document.getElementById("stagingDbUrlInput");
     var stagingUsername = document.getElementById("stagingUsernameInput");
     var stagingPassword = document.getElementById("stagingPasswordInput");
-    if (stagingDbUrl && !stagingDbUrl.value.trim()) {
-      stagingDbUrl.value = defaultStagingDbUrl;
-    }
+    updateStagingUrlFromEnvironment();
     if (stagingUsername && !stagingUsername.value.trim()) {
       stagingUsername.value = defaultStagingUsername;
     }
@@ -946,6 +1127,9 @@
     };
     var conditional = spec.conditional ? ' data-conditional="' + escapeHtml(spec.conditional) + '"' : "";
     var fieldAttrs = ' data-field-name="' + escapeHtml(fieldName) + '"' + conditional;
+    if (spec.type === "lookupRows") {
+      return lookupRowsHtml(fieldAttrs);
+    }
     if (spec.type === "select") {
       return [
         '<label class="field"' + fieldAttrs + '>',
@@ -960,10 +1144,11 @@
       ].join("");
     }
     if (spec.type === "textarea") {
+      var readOnly = spec.readOnly ? " readonly" : "";
       return [
         '<label class="field"' + fieldAttrs + '>',
         "<span>" + escapeHtml(spec.label) + "</span>",
-        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '">' + escapeHtml(spec.defaultValue || "") + "</textarea>",
+        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '"' + readOnly + ">" + escapeHtml(spec.defaultValue || "") + "</textarea>",
         "</label>"
       ].join("");
     }
@@ -1468,6 +1653,7 @@
   }
 
   function updatePreview() {
+    syncLookupValuesField();
     updateRepoLabel();
     saveLocalSettings();
     var title = buildTitle();
@@ -1566,6 +1752,10 @@
         throw new Error("Copy from staging is supported only for Profile Option, Lookup, and Value Set.");
       }
       if (copyFromStaging) {
+        updateStagingUrlFromEnvironment();
+        if (!inputValue("stagingEnvironment")) {
+          throw new Error("Enter Staging environment.");
+        }
         if (!inputValue("stagingDbUrl")) {
           throw new Error("Enter Staging URL.");
         }
@@ -1610,6 +1800,11 @@
           throw new Error("Enter Message SQL.");
         }
       } else if (seedType === "Lookup") {
+        var lookupLines = lookupValueLinesFromRows();
+        var lookupValuesInput = document.getElementById("lookupValuesInput");
+        if (lookupValuesInput) {
+          lookupValuesInput.value = lookupLines.join("\n");
+        }
         if (!inputValue("lookupType")) {
           throw new Error("Enter Lookup type.");
         }
@@ -1619,7 +1814,7 @@
         if (!inputValue("lookupDescription")) {
           throw new Error("Enter Lookup description.");
         }
-        if (!inputValue("lookupValues")) {
+        if (!lookupLines.length) {
           throw new Error("Enter Lookup values.");
         }
       }
