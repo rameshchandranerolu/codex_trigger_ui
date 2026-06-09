@@ -266,6 +266,14 @@
       "workflows": ["project", "custom"],
       "order": 110,
       "template": "inspect selected project focus={{focus}}",
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Collect a bounded, read-only project snapshot outside the LLM session.",
+        "commands": [
+          { "label": "Git status", "argv": ["git", "status", "--short"], "allow_failure": true, "timeout_seconds": 30, "max_output_chars": 6000 },
+          { "label": "Project file list", "argv": ["rg", "--files"], "allow_failure": true, "timeout_seconds": 30, "max_output_chars": 12000 }
+        ]
+      },
       "parameters": [
         { "name": "focus", "label": "Focus", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$" }
       ]

@@ -1563,21 +1563,7 @@
   }
 
   function selectedContextForIssue() {
-    var workflow = selectedWorkflow();
-    var project = selectedProject();
-    var parts = [];
-
-    if (workflow && workflow.context) {
-      parts.push(workflow.context);
-    }
-    if (workflow && workflow.requiresProject && project && project.context) {
-      parts.push(project.context);
-    }
-    if (els.contextInput.value.trim()) {
-      parts.push(els.contextInput.value.trim());
-    }
-
-    return parts.join("\n\n");
+    return els.contextInput.value.trim();
   }
 
   function buildCommandLines() {
