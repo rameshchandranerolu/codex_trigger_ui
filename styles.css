@@ -393,16 +393,10 @@ button {
 
 .primary-button,
 .secondary-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
   min-height: 42px;
   border-radius: 8px;
   padding: 0 15px;
-  box-sizing: border-box;
-  cursor: pointer;
   font-weight: 700;
-  text-decoration: none;
 }
 
 .primary-button {
