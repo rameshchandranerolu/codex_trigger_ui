@@ -135,7 +135,7 @@
       "label": "HCM PMC",
       "workflows": ["ade", "custom"],
       "order": 78,
-      "template": "hcm pmc bug={{bug}} txn=rnerolu_bug-{{bug}}",
+      "template": "hcm pmc bug={{bug}} txn=rnerolu_bug-{{bug}} view={{view}}",
       "natural_language": {
         "enabled": true,
         "execution": "confirm-then-run",
@@ -147,6 +147,7 @@
         "parameter_hints": [
           "Extract exactly one numeric bug id, accepting either a bare number or rnerolu_bug-<number> reference.",
           "Derive the transaction name as rnerolu_bug-<bugid> and use that transaction to identify the target ADE view.",
+          "Natural-language PMC requests such as run PMC for bug <bugid> are handled by the parent runner outside Codex when exactly one bug and ADE view can be inferred; otherwise ask only for the missing bug or view.",
           "If no bug id, multiple bug ids, or multiple matching view/transaction candidates are found, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
@@ -154,15 +155,16 @@
         "Extract exactly one numeric bug id and derive transaction name rnerolu_bug-{{bug}}.",
         "Identify the ADE view whose active or target transaction is rnerolu_bug-{{bug}} using ADE as the source of truth; if already inside a view, verify it with ade pwv first.",
         "If no unique matching view and transaction can be identified, stop and ask the requester for the view or transaction choice with CODEX_TRIGGER_STATUS: needs-input.",
-        "Before execution, summarize the identified view, transaction, and exact PMC command sequence for confirmation."
+        "Before execution, summarize the identified view, transaction, and exact PMC command sequence that will run outside Codex."
       ],
       "approval": {
         "required": true,
         "status": "needs-input",
-        "guidance": "Ask the requester to confirm entering the identified ADE view and running the listed PMC sequence. Do not run PMC until approval arrives in a follow-up comment."
+        "guidance": "Run natural-language or explicit catalog PMC requests through the parent runner outside Codex when exactly one bug and ADE view can be inferred. If either value is missing or ambiguous, ask only for that value. Do not run pmc_wrapper from inside the Codex session."
       },
       "instructions": [
         "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",
+        "PMC execution must happen outside the Codex child process. For explicit catalog Commands blocks and directly inferred natural-language PMC requests, the parent runner executes runner_execution with the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper before Codex starts.",
         "If starting outside the view, use the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
         "For pre-cleanview ADE lifecycle checks in a PMC workflow, including ade pwv, ade lsco, ade showlabels, ade refreshview, and ade cleanview, keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path; do not run a standalone --full-fmwc entry before refreshview.",
         "For actual PMC setup/run commands through scripts/ade-scripts/RunInView.sh, pass --full-fmwc in the ADE session that will run pmc_wrapper so FUSIONAPPS_SKIP_FMWC is not set; regular non-PMC ADE tasks should keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path.",
@@ -186,6 +188,25 @@
         "if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0; export LD_LIBRARY_PATH=${ORACLE_HOME}/lib; export PATH=${ORACLE_HOME}/bin:${PATH}; fi",
         "$HCMDEV_ROOT/bin/pmc_wrapper -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1"
       ],
+      "runner_execution": {
+        "enabled": true,
+        "allow_approval_required": true,
+        "commands": [
+          {
+            "label": "Run HCM PMC outside Codex",
+            "timeout_seconds": 21600,
+            "argv": [
+              "bash",
+              "/scratch/rnerolu/codeshare/projects/codex_local_runner/scripts/ade-scripts/RunInView.sh",
+              "--full-fmwc",
+              "-view",
+              "{{view}}",
+              "--",
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\ncd \"$AVR\"\nade expand -recurse \"$AVR/fusionapps/com/config\"\nade expand \"$AVR/fainteg\" -r\nif ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0; export LD_LIBRARY_PATH=${ORACLE_HOME}/lib; export PATH=${ORACLE_HOME}/bin:${PATH}; fi\n\"$HCMDEV_ROOT/bin/pmc_wrapper\" -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1"
+            ]
+          }
+        ]
+      },
       "parameters": [
         {
           "name": "bug",
@@ -193,6 +214,13 @@
           "required": true,
           "pattern": "^[0-9]+$",
           "normalization": { "type": "bug_number", "prefix": "rnerolu_bug-" }
+        },
+        {
+          "name": "view",
+          "label": "ADE view",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "description": "Confirmed ADE view whose active transaction is rnerolu_bug-{{bug}}."
         }
       ]
     },
