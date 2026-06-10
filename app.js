@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260610-github-old-plus-web";
+  var ASSET_VERSION = "20260610-pre30-primary";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -471,7 +471,9 @@
 
     els.previewButton.addEventListener("click", updatePreview);
     els.submitButton.addEventListener("click", createIssue);
-    els.webButton.addEventListener("click", openWebIssue);
+    if (els.webButton) {
+      els.webButton.addEventListener("click", openWebIssue);
+    }
   }
 
   function loadLocalSettings() {
