@@ -147,7 +147,7 @@
         "parameter_hints": [
           "Extract exactly one numeric bug id, accepting either a bare number or rnerolu_bug-<number> reference.",
           "Derive the transaction name as rnerolu_bug-<bugid> and use that transaction to identify the target ADE view.",
-          "Natural-language PMC requests such as run PMC for bug <bugid> are handled by the parent runner outside Codex when exactly one bug and ADE view can be inferred; otherwise ask only for the missing bug or view.",
+          "Natural-language PMC requests such as run PMC for bug <bugid> are handled by the parent runner outside Codex when exactly one bug and ADE view can be inferred from the bug transaction; otherwise ask only for the missing bug or matching view.",
           "If no bug id, multiple bug ids, or multiple matching view/transaction candidates are found, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
@@ -160,7 +160,7 @@
       "approval": {
         "required": true,
         "status": "needs-input",
-        "guidance": "Run natural-language or explicit catalog PMC requests through the parent runner outside Codex when exactly one bug and ADE view can be inferred. If either value is missing or ambiguous, ask only for that value. Do not run pmc_wrapper from inside the Codex session."
+        "guidance": "Run natural-language or explicit catalog PMC requests through the parent runner outside Codex when exactly one bug and ADE view can be inferred from the bug transaction. If either value is missing or ambiguous, ask only for that value. Do not run pmc_wrapper from inside the Codex session."
       },
       "instructions": [
         "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",

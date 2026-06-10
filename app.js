@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260605-seeddata-lookup-rows";
+  var ASSET_VERSION = "20260610-ios-github-link";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -1650,6 +1650,7 @@
       "",
       body
     ].join("\n");
+    updateSubmitLink(title, body);
   }
 
   function saveLocalSettings() {
@@ -1870,11 +1871,12 @@
     }
   }
 
-  function createIssue() {
+  function createIssue(event) {
     var owner;
     var repo;
     var title;
     var body;
+    var url;
 
     try {
       validateForm();
@@ -1882,15 +1884,22 @@
       repo = els.repoInput.value.trim();
       title = buildTitle();
       body = buildIssueBody();
+      url = buildNewIssueUrl(owner, repo, title, body);
     } catch (error) {
+      if (event && event.preventDefault) {
+        event.preventDefault();
+      }
       showResult(error.message, true);
       setStatus("Needs input", "error");
       return;
     }
 
     setStatus("Opened", "ok");
-    showResult("GitHub will open with the issue prefilled. Submit it there.", false);
-    window.location.href = buildNewIssueUrl(owner, repo, title, body);
+    showResult("GitHub will open in the browser or app with the issue prefilled. Submit it there.", false);
+    els.submitButton.href = url;
+    if (!event) {
+      window.location.href = url;
+    }
   }
 
   function buildNewIssueUrl(owner, repo, title, body) {
@@ -1900,6 +1909,18 @@
     params.set("labels", queuedLabel());
     params.append("labels[]", queuedLabel());
     return "https://github.com/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues/new?" + params.toString();
+  }
+
+  function updateSubmitLink(title, body) {
+    var owner = els.ownerInput.value.trim();
+    var repo = els.repoInput.value.trim();
+    if (!owner || !repo) {
+      els.submitButton.href = "#";
+      els.submitButton.setAttribute("aria-disabled", "true");
+      return;
+    }
+    els.submitButton.href = buildNewIssueUrl(owner, repo, title, body);
+    els.submitButton.removeAttribute("aria-disabled");
   }
 
   function showResult(html, isError) {
