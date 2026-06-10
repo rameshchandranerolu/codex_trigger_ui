@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260610-github-two-open-buttons";
+  var ASSET_VERSION = "20260610-github-old-plus-web";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -1872,25 +1872,18 @@
     }
   }
 
-  function issueUrlFromForm() {
+  function createIssue() {
     var owner;
     var repo;
     var title;
     var body;
 
-    validateForm();
-    owner = els.ownerInput.value.trim();
-    repo = els.repoInput.value.trim();
-    title = buildTitle();
-    body = buildIssueBody();
-    return buildNewIssueUrl(owner, repo, title, body);
-  }
-
-  function createIssue() {
-    var url;
-
     try {
-      url = issueUrlFromForm();
+      validateForm();
+      owner = els.ownerInput.value.trim();
+      repo = els.repoInput.value.trim();
+      title = buildTitle();
+      body = buildIssueBody();
     } catch (error) {
       showResult(error.message, true);
       setStatus("Needs input", "error");
@@ -1899,15 +1892,24 @@
 
     setStatus("Opened", "ok");
     showResult("GitHub will open with the issue prefilled. Submit it there.", false);
-    window.location.href = url;
+    window.location.href = buildNewIssueUrl(owner, repo, title, body);
   }
 
   function openWebIssue() {
+    var owner;
+    var repo;
+    var title;
+    var body;
     var url;
     var opened;
 
     try {
-      url = issueUrlFromForm();
+      validateForm();
+      owner = els.ownerInput.value.trim();
+      repo = els.repoInput.value.trim();
+      title = buildTitle();
+      body = buildIssueBody();
+      url = buildNewIssueWebUrl(owner, repo, title, body);
     } catch (error) {
       showResult(error.message, true);
       setStatus("Needs input", "error");
@@ -1929,6 +1931,12 @@
     params.set("labels", queuedLabel());
     params.append("labels[]", queuedLabel());
     return "https://github.com/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues/new?" + params.toString();
+  }
+
+  function buildNewIssueWebUrl(owner, repo, title, body) {
+    var directUrl = buildNewIssueUrl(owner, repo, title, body);
+    var pathAndQuery = directUrl.replace(/^https:\/\/github\.com/, "");
+    return "https://github.com/login?return_to=" + encodeURIComponent(pathAndQuery);
   }
 
   function showResult(html, isError) {
