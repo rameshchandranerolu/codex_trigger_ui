@@ -1906,7 +1906,8 @@
   function buildNewIssueWebUrl(owner, repo, title, body) {
     var directUrl = buildNewIssueUrl(owner, repo, title, body);
     var pathAndQuery = directUrl.replace(/^https:\/\/github\.com/, "");
-    return "https://github.com/login?return_to=" + encodeURIComponent(pathAndQuery);
+    // Start on www.github.com so iOS opens Safari before GitHub redirects to the canonical host.
+    return "https://www.github.com/login?return_to=" + encodeURIComponent(pathAndQuery);
   }
 
   function showResult(html, isError) {
