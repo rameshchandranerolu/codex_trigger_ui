@@ -7,9 +7,24 @@
       "order": 10,
       "template": "ade createview view={{view}} branch={{branch}} txn={{txn}}",
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "branch", "label": "Branch", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "txn", "label": "Transaction", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "branch",
+          "label": "Branch",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "txn",
+          "label": "Transaction",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
@@ -19,7 +34,12 @@
       "order": 20,
       "template": "ade useview view={{view}}",
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
@@ -29,8 +49,18 @@
       "order": 30,
       "template": "ade begintrans view={{view}} txn={{txn}}",
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "txn", "label": "Transaction", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "txn",
+          "label": "Transaction",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
@@ -40,7 +70,12 @@
       "order": 40,
       "template": "ade status view={{view}}",
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
@@ -48,10 +83,117 @@
       "label": "Refresh View",
       "workflow": "ade",
       "order": 50,
-      "template": "ade refreshview view={{view}} branch={{branch}}",
+      "template": "ade refreshview -latest view={{view}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-handoff",
+        "examples": [
+          "run refreshview for view rnerolu_v_bug_39435490_bronze",
+          "refreshview to latest label in rnerolu_v_bug_39435490_bronze",
+          "refresh the ADE view rnerolu_v_bug_39435490_bronze"
+        ],
+        "parameter_hints": [
+          "Extract exactly one ADE view name from the request or current resumed issue context.",
+          "If the view is missing or ambiguous, ask only for the view with CODEX_TRIGGER_STATUS: needs-input.",
+          "After the requester has approved refreshview and the view is known, do not run refreshview inside Codex; emit CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>."
+        ]
+      },
+      "approval": {
+        "required": true,
+        "status": "needs-input",
+        "guidance": "Refreshview is a state-changing ADE lifecycle command. Confirm the target view first; after approval, hand off to the parent runner with CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>."
+      },
+      "instructions": [
+        "ADE refreshview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>.",
+        "The parent runner executes this command through the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
+        "Use at least the standard ADE lifecycle timeout budget; refreshview commonly needs up to 10 minutes.",
+        "If refreshview fails with ade_info.vmd.free or another ADE lock, follow ADE persist lock guidance and do not remove ade_locks.wrd automatically."
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "allow_approval_required": true,
+        "summary": "Run ADE refreshview outside Codex through the local RunInView wrapper.",
+        "commands": [
+          {
+            "label": "Run ADE refreshview outside Codex",
+            "timeout_seconds": 700,
+            "argv": [
+              "bash",
+              "/scratch/rnerolu/codeshare/projects/codex_local_runner/scripts/ade-scripts/RunInView.sh",
+              "-view",
+              "{{view}}",
+              "--",
+              "ade refreshview -latest"
+            ]
+          }
+        ]
+      },
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "branch", "label": "Branch", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
+      ]
+    },
+    {
+      "id": "ade.clean-view",
+      "label": "Clean View",
+      "workflow": "ade",
+      "order": 55,
+      "template": "ade cleanview view={{view}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-handoff",
+        "examples": [
+          "run cleanview for view rnerolu_v_bug_39435490_bronze",
+          "cleanview rnerolu_v_bug_39435490_bronze",
+          "clean the ADE view rnerolu_v_bug_39435490_bronze"
+        ],
+        "parameter_hints": [
+          "Extract exactly one ADE view name from the request or current resumed issue context.",
+          "If the view is missing or ambiguous, ask only for the view with CODEX_TRIGGER_STATUS: needs-input.",
+          "After the requester has approved cleanview and the view is known, do not run cleanview inside Codex; emit CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>."
+        ]
+      },
+      "approval": {
+        "required": true,
+        "status": "needs-input",
+        "guidance": "Cleanview is a state-changing ADE lifecycle command. Confirm the target view first; after approval, hand off to the parent runner with CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>."
+      },
+      "instructions": [
+        "ADE cleanview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>.",
+        "The parent runner executes this command through the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
+        "Cleanview must be its own parent-runner command. Do not chain commands after cleanview in the same ADE session.",
+        "If PMC should run after cleanview, emit a separate later handoff line for CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname>; the PMC parent command re-enters with --full-fmwc."
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "allow_approval_required": true,
+        "summary": "Run ADE cleanview outside Codex through the local RunInView wrapper.",
+        "commands": [
+          {
+            "label": "Run ADE cleanview outside Codex",
+            "timeout_seconds": 700,
+            "argv": [
+              "bash",
+              "/scratch/rnerolu/codeshare/projects/codex_local_runner/scripts/ade-scripts/RunInView.sh",
+              "-view",
+              "{{view}}",
+              "--",
+              "ade cleanview"
+            ]
+          }
+        ]
+      },
+      "parameters": [
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
@@ -61,8 +203,18 @@
       "order": 60,
       "template": "ade checkin-save view={{view}} txn={{txn}}",
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "txn", "label": "Transaction", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "txn",
+          "label": "Transaction",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
@@ -79,15 +231,33 @@
         "Use OraReview MCP tools for read-only review metadata, reviewer status, comments, and merge-check details when helpful."
       ],
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
-        { "name": "reviewers", "label": "Reviewers", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$"
+        },
+        {
+          "name": "reviewers",
+          "label": "Reviewers",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.@,+-]+$"
+        }
       ]
     },
     {
       "id": "hcm.bug-validation",
       "label": "HCM Bug Validation",
-      "workflows": ["ade", "custom"],
+      "workflows": [
+        "ade",
+        "custom"
+      ],
       "order": 75,
       "template": "\"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{bug_ref}}\"",
       "natural_language": {
@@ -111,12 +281,17 @@
         "failure_guidance": "Do not run subsequent commands. Summarize the useful validation output and wait for user verification or follow-up fix instructions."
       },
       "followup_remediation": {
-        "summary": "Use BugDB MCP for explicit BugDB updates needed to fix validation when available; if MCP lacks field-update support, use dev-bugdb-helper for approved field updates, then rerun the same HCM bug validation command.",
+        "summary": "Use BugDB MCP for explicit BugDB updates needed to fix validation when available; if MCP lacks field-update support or cannot resolve FusionApps tracking groups, use dev-bugdb-helper for approved field and transaction updates, then rerun the same HCM bug validation command.",
         "instructions": [
           "Prefer BugDB MCP for existing bug updates when the needed field-update tool exists.",
           "If MCP cannot update existing bug fields, use $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh for approved field updates only; CODEX_HOME should be /scratch/<runner-user>/.codex, the wrapper is pinned to /bin/python3.11, and global python3 must not be changed.",
           "Resolve friendly field labels such as Bug Fix ETA, Bug Fix By, or Component Version to exact BugDB API keys before constructing a bug-update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys.",
           "Do not print OAuth tokens or client secrets.",
+          "For product_id 2419, Fix ETA maps to fixeta; write it in DD-MON-YYYY format such as 12-JUN-2026 because ISO date strings can fail with ORA-01861 even though readback displays ISO format.",
+          "Bug Type (FusionApps) is a tracking group, not a bug header field, and dev-bugdb-helper bugsmart-closure only posts the closure template comment; it does not update tracking group data.",
+          "For a normal HCM defect/code-fix bug, set Bug Type (FusionApps) to Defect with dev-bugdb-helper bug-update-transactions, preserving required header fields and including reassign_bug=N plus tg=[{tg_id:2963,tg_operation:C,tg_new_value:Defect}]. Use Tracking, Fwd Port, or Backport only when the workflow explicitly calls for that type.",
+          "If BugDB MCP add_tracking_group_data_to_bug returns Unknown tracking group name for Bug Type (FusionApps), use the bug-update-transactions path instead of asking for manual input.",
+          "Verify BugDB audit/readback after updates, including CHG: Fix ETA->... and CHG: Bug Type (FusionApps)->Defect when applicable.",
           "After applying explicit BugDB follow-up instructions, rerun validation and keep gating until exit code 0 plus standalone PASS."
         ]
       },
@@ -126,14 +301,20 @@
           "label": "Bug reference",
           "required": true,
           "pattern": "^rnerolu_bug-[0-9]+$",
-          "normalization": { "type": "bug_ref", "prefix": "rnerolu_bug-" }
+          "normalization": {
+            "type": "bug_ref",
+            "prefix": "rnerolu_bug-"
+          }
         }
       ]
     },
     {
       "id": "hcm.pmc",
       "label": "HCM PMC",
-      "workflows": ["ade", "custom"],
+      "workflows": [
+        "ade",
+        "custom"
+      ],
       "order": 78,
       "template": "hcm pmc bug={{bug}} txn=rnerolu_bug-{{bug}} view={{view}}",
       "natural_language": {
@@ -147,7 +328,7 @@
         "parameter_hints": [
           "Extract exactly one numeric bug id, accepting either a bare number or rnerolu_bug-<number> reference.",
           "Derive the transaction name as rnerolu_bug-<bugid> and use that transaction to identify the target ADE view.",
-          "Natural-language PMC requests such as run PMC for bug <bugid> are handled by the parent runner outside Codex when exactly one bug and ADE view can be inferred from the bug transaction; otherwise ask only for the missing bug or matching view.",
+          "Natural-language PMC requests such as run PMC for bug <bugid> are handled by Codex first; after the bug, view, and approval are clear, emit CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname> so the parent runner executes the reusable PMC command outside Codex.",
           "If no bug id, multiple bug ids, or multiple matching view/transaction candidates are found, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
@@ -160,13 +341,14 @@
       "approval": {
         "required": true,
         "status": "needs-input",
-        "guidance": "Run natural-language or explicit catalog PMC requests through the parent runner outside Codex when exactly one bug and ADE view can be inferred from the bug transaction. If either value is missing or ambiguous, ask only for that value. Do not run pmc_wrapper from inside the Codex session."
+        "guidance": "Codex should interpret natural-language PMC requests, confirm the target bug/view when needed, and hand off to the parent runner with CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname>. If either value is missing or ambiguous, ask only for that value. Do not run pmc_wrapper from inside the Codex session."
       },
       "instructions": [
         "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",
-        "PMC execution must happen outside the Codex child process. For explicit catalog Commands blocks and directly inferred natural-language PMC requests, the parent runner executes runner_execution with the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper before Codex starts.",
+        "PMC execution must happen outside the Codex child process. For explicit catalog Commands blocks and Codex CODEX_RUNNER_COMMAND handoff lines, the parent runner executes runner_execution with the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper.",
         "If starting outside the view, use the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
         "For pre-cleanview ADE lifecycle checks in a PMC workflow, including ade pwv, ade lsco, ade showlabels, ade refreshview, and ade cleanview, keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path; do not run a standalone --full-fmwc entry before refreshview.",
+        "Use a minimum timeout budget of 600 seconds for every ADE command wrapper invocation, including read-only ADE checks, refreshview, cleanview, bug validation, checkin/save, OraReview, and MergeReq-related ADE preflight commands. Do not wrap ADE commands with timeout 120; refreshview commonly needs up to 10 minutes, and PMC or SeedData-specific helpers may use longer budgets when documented.",
         "For actual PMC setup/run commands through scripts/ade-scripts/RunInView.sh, pass --full-fmwc in the ADE session that will run pmc_wrapper so FUSIONAPPS_SKIP_FMWC is not set; regular non-PMC ADE tasks should keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path.",
         "If ade cleanview is part of the PMC setup, run any needed refreshview before cleanview, then after cleanview completes, exit out of that ADE view session and do not run any further commands in it; re-enter the same ADE view in a fresh --full-fmwc session before ade pwv, ade lsco, ade expand, or pmc_wrapper. That re-entered session is the PMC-intended ADE session.",
         "When using scripts/ade-scripts/RunInView.sh, cleanview must be its own invocation; include an explicit blocking re-entry command such as scripts/ade-scripts/RunInView.sh --full-fmwc -view <view> -- \"cd $AVR; exit\" only after cleanview. After that re-entry completes, batch sequential post-cleanview commands in that same fresh local wrapper session, using inline output checks for required checkpoints; do not re-enter the view for every command.",
@@ -213,7 +395,10 @@
           "label": "Bug number",
           "required": true,
           "pattern": "^[0-9]+$",
-          "normalization": { "type": "bug_number", "prefix": "rnerolu_bug-" }
+          "normalization": {
+            "type": "bug_number",
+            "prefix": "rnerolu_bug-"
+          }
         },
         {
           "name": "view",
@@ -227,7 +412,10 @@
     {
       "id": "mergereq.submit",
       "label": "Submit Merge Request",
-      "workflows": ["ade", "custom"],
+      "workflows": [
+        "ade",
+        "custom"
+      ],
       "order": 80,
       "template": "mergereq submit view={{view}} bug={{bug}} mode={{mode}} manager={{manager}} release={{release}} cc={{cc}}",
       "skill": "mergereq",
@@ -258,18 +446,58 @@
         "Do not submit mergereq when the latest PMC report has PMC_CODE_ISSUE, PMC_CODE_ERROR, missing premerge_result.json, or otherwise incomplete Central PMC results. If the only PMC concern is BUG Validation Status: INVALID, require manual HCM bug validation to PASS and upload the txt evidence to the bug first; report unresolved blockers with CODEX_TRIGGER_STATUS: needs-input instead."
       ],
       "parameters": [
-        { "name": "view", "label": "View name", "required": true, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "bug", "label": "Bug number", "required": true, "pattern": "^[0-9]+$" },
-        { "name": "mode", "label": "Mode", "required": true, "default": "normal", "options": ["normal", "check", "db-only", "no-mail"] },
-        { "name": "manager", "label": "Manager email", "required": false, "default": "alok.x.sahay@oracle.com", "pattern": "^[A-Za-z0-9_.@+-]+$" },
-        { "name": "release", "label": "Release email", "required": false, "pattern": "^[A-Za-z0-9_.@+-]+$" },
-        { "name": "cc", "label": "CC emails", "required": false, "pattern": "^[A-Za-z0-9_.@,+-]+$" }
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$"
+        },
+        {
+          "name": "mode",
+          "label": "Mode",
+          "required": true,
+          "default": "normal",
+          "options": [
+            "normal",
+            "check",
+            "db-only",
+            "no-mail"
+          ]
+        },
+        {
+          "name": "manager",
+          "label": "Manager email",
+          "required": false,
+          "default": "alok.x.sahay@oracle.com",
+          "pattern": "^[A-Za-z0-9_.@+-]+$"
+        },
+        {
+          "name": "release",
+          "label": "Release email",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.@+-]+$"
+        },
+        {
+          "name": "cc",
+          "label": "CC emails",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.@,+-]+$"
+        }
       ]
     },
     {
       "id": "codesearch.search",
       "label": "CodeSearch",
-      "workflows": ["ade", "custom"],
+      "workflows": [
+        "ade",
+        "custom"
+      ],
       "order": 90,
       "template": "codesearch search query={{query}} full={{full}} definition={{definition}} symbol={{symbol}} path={{path}} type={{type}} ade_label={{ade_label}} ade_label_series={{ade_label_series}}",
       "mcp": "codesearch",
@@ -279,42 +507,117 @@
         "Map query to the most appropriate CodeSearch field, usually full unless symbol or definition is more specific."
       ],
       "parameters": [
-        { "name": "query", "label": "Search query", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=()#*\\n-]+$" },
-        { "name": "full", "label": "Full text", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=()#*\\n-]+$" },
-        { "name": "definition", "label": "Definition", "required": false, "pattern": "^[A-Za-z0-9_.:@+=#*-]+$" },
-        { "name": "symbol", "label": "Symbol", "required": false, "pattern": "^[A-Za-z0-9_.:@+=#*-]+$" },
-        { "name": "path", "label": "Path", "required": false, "pattern": "^[A-Za-z0-9_./:@+=*,-]+$" },
-        { "name": "type", "label": "File type", "required": false, "pattern": "^[A-Za-z0-9_,.+-]+$" },
-        { "name": "ade_label", "label": "ADE label", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" },
-        { "name": "ade_label_series", "label": "ADE label series", "required": false, "pattern": "^[A-Za-z0-9_.-]+$" }
+        {
+          "name": "query",
+          "label": "Search query",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_ ./,:@+=()#*\\n-]+$"
+        },
+        {
+          "name": "full",
+          "label": "Full text",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_ ./,:@+=()#*\\n-]+$"
+        },
+        {
+          "name": "definition",
+          "label": "Definition",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.:@+=#*-]+$"
+        },
+        {
+          "name": "symbol",
+          "label": "Symbol",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.:@+=#*-]+$"
+        },
+        {
+          "name": "path",
+          "label": "Path",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_./:@+=*,-]+$"
+        },
+        {
+          "name": "type",
+          "label": "File type",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_,.+-]+$"
+        },
+        {
+          "name": "ade_label",
+          "label": "ADE label",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "ade_label_series",
+          "label": "ADE label series",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
       ]
     },
     {
       "id": "project.inspect",
       "label": "Inspect Selected Project",
-      "workflows": ["project", "custom"],
+      "workflows": [
+        "project",
+        "custom"
+      ],
       "order": 110,
       "template": "inspect selected project focus={{focus}}",
       "runner_execution": {
         "enabled": true,
         "summary": "Collect a bounded, read-only project snapshot outside the LLM session.",
         "commands": [
-          { "label": "Git status", "argv": ["git", "status", "--short"], "allow_failure": true, "timeout_seconds": 30, "max_output_chars": 6000 },
-          { "label": "Project file list", "argv": ["rg", "--files"], "allow_failure": true, "timeout_seconds": 30, "max_output_chars": 12000 }
+          {
+            "label": "Git status",
+            "argv": [
+              "git",
+              "status",
+              "--short"
+            ],
+            "allow_failure": true,
+            "timeout_seconds": 30,
+            "max_output_chars": 6000
+          },
+          {
+            "label": "Project file list",
+            "argv": [
+              "rg",
+              "--files"
+            ],
+            "allow_failure": true,
+            "timeout_seconds": 30,
+            "max_output_chars": 12000
+          }
         ]
       },
       "parameters": [
-        { "name": "focus", "label": "Focus", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$" }
+        {
+          "name": "focus",
+          "label": "Focus",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$"
+        }
       ]
     },
     {
       "id": "project.run-tests",
       "label": "Run Project Tests",
-      "workflows": ["project", "custom"],
+      "workflows": [
+        "project",
+        "custom"
+      ],
       "order": 120,
       "template": "run project tests command={{test_command}}",
       "parameters": [
-        { "name": "test_command", "label": "Test command", "required": false, "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$" }
+        {
+          "name": "test_command",
+          "label": "Test command",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$"
+        }
       ]
     }
   ]
