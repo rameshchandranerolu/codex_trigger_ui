@@ -433,7 +433,8 @@
       "contextInput",
       "titleInput",
       "previewButton",
-      "submitButton",
+      "submitLink",
+      "copyIssueUrlButton",
       "resultRow",
       "issuePreview",
       "labelPreview"
@@ -469,7 +470,8 @@
     });
 
     els.previewButton.addEventListener("click", updatePreview);
-    els.submitButton.addEventListener("click", createIssue);
+    els.submitLink.addEventListener("click", openIssueLink);
+    els.copyIssueUrlButton.addEventListener("click", copyIssueUrl);
   }
 
   function loadLocalSettings() {
@@ -1650,6 +1652,7 @@
       "",
       body
     ].join("\n");
+    syncIssueLink();
   }
 
   function saveLocalSettings() {
@@ -1870,31 +1873,6 @@
     }
   }
 
-  function createIssue() {
-    var owner;
-    var repo;
-    var title;
-    var body;
-    var url;
-
-    try {
-      validateForm();
-      owner = els.ownerInput.value.trim();
-      repo = els.repoInput.value.trim();
-      title = buildTitle();
-      body = buildIssueBody();
-      url = buildNewIssueWebUrl(owner, repo, title, body);
-    } catch (error) {
-      showResult(error.message, true);
-      setStatus("Needs input", "error");
-      return;
-    }
-
-    setStatus("Opened", "ok");
-    showResult("GitHub web will open with the issue prefilled. Submit it there.", false);
-    window.location.href = url;
-  }
-
   function buildNewIssueUrl(owner, repo, title, body) {
     var params = new URLSearchParams();
     params.set("title", title);
@@ -1903,11 +1881,69 @@
     return "https://github.com/" + encodeURIComponent(owner) + "/" + encodeURIComponent(repo) + "/issues/new?" + params.toString();
   }
 
-  function buildNewIssueWebUrl(owner, repo, title, body) {
-    var directUrl = buildNewIssueUrl(owner, repo, title, body);
-    var pathAndQuery = directUrl.replace(/^https:\/\/github\.com/, "");
-    // Start on www.github.com so iOS opens Safari before GitHub redirects to the canonical host.
-    return "https://www.github.com/login?return_to=" + encodeURIComponent(pathAndQuery);
+  function buildCurrentIssueUrl() {
+    var owner;
+    var repo;
+    var title;
+    var body;
+
+    validateForm();
+    owner = els.ownerInput.value.trim();
+    repo = els.repoInput.value.trim();
+    title = buildTitle();
+    body = buildIssueBody();
+    return buildNewIssueUrl(owner, repo, title, body);
+  }
+
+  function syncIssueLink() {
+    try {
+      els.submitLink.href = buildCurrentIssueUrl();
+      els.submitLink.removeAttribute("aria-disabled");
+    } catch (error) {
+      els.submitLink.href = "#";
+      els.submitLink.setAttribute("aria-disabled", "true");
+    }
+  }
+
+  function openIssueLink(event) {
+    try {
+      els.submitLink.href = buildCurrentIssueUrl();
+      setStatus("Opened", "ok");
+      showResult("GitHub will open with the issue prefilled. Submit it there.", false);
+    } catch (error) {
+      event.preventDefault();
+      showResult(error.message, true);
+      setStatus("Needs input", "error");
+    }
+  }
+
+  function copyIssueUrl() {
+    var url;
+
+    try {
+      url = buildCurrentIssueUrl();
+    } catch (error) {
+      showResult(error.message, true);
+      setStatus("Needs input", "error");
+      return;
+    }
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () {
+        showResult("Copied the GitHub issue URL. Paste it into the Safari address bar to keep it in the browser.", false);
+      }).catch(function () {
+        showManualIssueUrl(url);
+      });
+    } else {
+      showManualIssueUrl(url);
+    }
+  }
+
+  function showManualIssueUrl(url) {
+    showResult(
+      'Copy this URL manually:<br><input class="manual-url-input" readonly value="' + escapeHtml(url) + '">',
+      false
+    );
   }
 
   function showResult(html, isError) {

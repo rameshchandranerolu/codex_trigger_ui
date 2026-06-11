@@ -393,10 +393,14 @@ button {
 
 .primary-button,
 .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-height: 42px;
   border-radius: 8px;
   padding: 0 15px;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .primary-button {
@@ -409,10 +413,19 @@ button {
   background: var(--accent-strong);
 }
 
+.primary-button[aria-disabled="true"] {
+  opacity: 0.58;
+}
+
 .secondary-button {
   border: 1px solid var(--line);
   background: #fff;
   color: var(--text);
+}
+
+.manual-url-input {
+  width: 100%;
+  margin-top: 8px;
 }
 
 .result-row {
