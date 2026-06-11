@@ -434,7 +434,6 @@
       "titleInput",
       "previewButton",
       "submitButton",
-      "webButton",
       "resultRow",
       "issuePreview",
       "labelPreview"
@@ -471,9 +470,6 @@
 
     els.previewButton.addEventListener("click", updatePreview);
     els.submitButton.addEventListener("click", createIssue);
-    if (els.webButton) {
-      els.webButton.addEventListener("click", openWebIssue);
-    }
   }
 
   function loadLocalSettings() {
@@ -1879,31 +1875,7 @@
     var repo;
     var title;
     var body;
-
-    try {
-      validateForm();
-      owner = els.ownerInput.value.trim();
-      repo = els.repoInput.value.trim();
-      title = buildTitle();
-      body = buildIssueBody();
-    } catch (error) {
-      showResult(error.message, true);
-      setStatus("Needs input", "error");
-      return;
-    }
-
-    setStatus("Opened", "ok");
-    showResult("GitHub will open with the issue prefilled. Submit it there.", false);
-    window.location.href = buildNewIssueUrl(owner, repo, title, body);
-  }
-
-  function openWebIssue() {
-    var owner;
-    var repo;
-    var title;
-    var body;
     var url;
-    var opened;
 
     try {
       validateForm();
@@ -1920,10 +1892,7 @@
 
     setStatus("Opened", "ok");
     showResult("GitHub web will open with the issue prefilled. Submit it there.", false);
-    opened = window.open(url, "_blank", "noopener");
-    if (!opened) {
-      window.location.href = url;
-    }
+    window.location.href = url;
   }
 
   function buildNewIssueUrl(owner, repo, title, body) {
