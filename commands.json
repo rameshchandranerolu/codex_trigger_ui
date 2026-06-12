@@ -105,7 +105,7 @@
       },
       "instructions": [
         "ADE refreshview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>.",
-        "The parent runner executes this command through the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
+        "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
         "Use at least the standard ADE lifecycle timeout budget; refreshview commonly needs up to 10 minutes.",
         "If refreshview fails with ade_info.vmd.free or another ADE lock, follow ADE persist lock guidance and do not remove ade_locks.wrd automatically."
       ],
@@ -119,7 +119,7 @@
             "timeout_seconds": 700,
             "argv": [
               "bash",
-              "/scratch/rnerolu/codeshare/projects/codex_local_runner/scripts/ade-scripts/RunInView.sh",
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh",
               "-view",
               "{{view}}",
               "--",
@@ -164,7 +164,7 @@
       },
       "instructions": [
         "ADE cleanview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>.",
-        "The parent runner executes this command through the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
+        "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
         "Cleanview must be its own parent-runner command. Do not chain commands after cleanview in the same ADE session.",
         "If PMC should run after cleanview, emit a separate later handoff line for CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname>; the PMC parent command re-enters with --full-fmwc."
       ],
@@ -178,7 +178,7 @@
             "timeout_seconds": 700,
             "argv": [
               "bash",
-              "/scratch/rnerolu/codeshare/projects/codex_local_runner/scripts/ade-scripts/RunInView.sh",
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh",
               "-view",
               "{{view}}",
               "--",
@@ -194,6 +194,50 @@
           "required": true,
           "pattern": "^[A-Za-z0-9_.-]+$"
         }
+      ]
+    },
+    {
+      "id": "ade.destroy-view",
+      "label": "Destroy ADE View",
+      "workflows": [
+        "ade",
+        "custom"
+      ],
+      "order": 58,
+      "template": "ade destroyview -force -aborttrans {{view}}",
+      "skill": "ade",
+      "natural_language": {
+        "enabled": true,
+        "execution": "direct",
+        "examples": [
+          "verify the view has no open transaction then destroy view with force option",
+          "cleanup ADE view jdoe_bug_123_bronze",
+          "destroy view jdoe_bug_123_bronze"
+        ],
+        "parameter_hints": [
+          "Use the current issue or resumed session context to infer exactly one ADE view when the follow-up does not repeat it.",
+          "If no unique view can be identified, ask only for the view with CODEX_TRIGGER_STATUS: needs-input.",
+          "Proceed only when the requester explicitly asked to destroy, remove, delete, or cleanup the view."
+        ]
+      },
+      "instructions": [
+        "ADE view cleanup: the requested action is view cleanup, not MergeReq status readback.",
+        "Before destroyview, verify the view has no open transaction and no checked-out files with ADE commands.",
+        "Use `ade destroyview -force -aborttrans <view>` only for the explicitly requested view.",
+        "Do not manually remove view directories or ADE lock files."
+      ],
+      "parameters": [
+        {
+          "name": "view",
+          "label": "View name",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
+      ],
+      "command_sequence": [
+        "ade pwv",
+        "ade lsco",
+        "ade destroyview -force -aborttrans {{view}}"
       ]
     },
     {
@@ -262,7 +306,7 @@
       "template": "\"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{bug_ref}}\"",
       "natural_language": {
         "enabled": true,
-        "execution": "direct",
+        "execution": "confirm-then-handoff",
         "examples": [
           "run bug validation for bug 30595896",
           "validate HCM bug rnerolu_bug-30595896",
@@ -270,6 +314,7 @@
         ],
         "parameter_hints": [
           "Extract exactly one bug number or rnerolu_bug-<number> reference from the request.",
+          "HCM bug validation does not need an ADE view. Once the bug reference is known and execution is approved, do not run hcmbugvalidation inside Codex; emit CODEX_RUNNER_COMMAND: hcm.bug-validation bug_ref=<bugid> so the parent runner executes it outside the child sandbox.",
           "If the request has no bug id or more than one plausible bug id, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
@@ -306,7 +351,22 @@
             "prefix": "rnerolu_bug-"
           }
         }
-      ]
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Run HCM bug validation outside Codex directly from the parent runner environment; no ADE view entry is required.",
+        "commands": [
+          {
+            "label": "Run HCM bug validation outside Codex",
+            "timeout_seconds": 900,
+            "argv": [
+              "bash",
+              "-c",
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\nif [ -n \"${HCMDEV_ROOT:-}\" ] && [ -x \"$HCMDEV_ROOT/bin/hcmbugvalidation\" ]; then exec \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{bug_ref}}\"; fi\nexec hcmbugvalidation \"{{bug_ref}}\""
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "hcm.pmc",
@@ -345,8 +405,8 @@
       },
       "instructions": [
         "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",
-        "PMC execution must happen outside the Codex child process. For explicit catalog Commands blocks and Codex CODEX_RUNNER_COMMAND handoff lines, the parent runner executes runner_execution with the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper.",
-        "If starting outside the view, use the local-runner-owned scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
+        "PMC execution must happen outside the Codex child process. For explicit catalog Commands blocks and Codex CODEX_RUNNER_COMMAND handoff lines, the parent runner executes runner_execution with the repo-common scripts/ade-scripts/RunInView.sh wrapper.",
+        "If starting outside the view, use the repo-common scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
         "For pre-cleanview ADE lifecycle checks in a PMC workflow, including ade pwv, ade lsco, ade showlabels, ade refreshview, and ade cleanview, keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path; do not run a standalone --full-fmwc entry before refreshview.",
         "Use a minimum timeout budget of 600 seconds for every ADE command wrapper invocation, including read-only ADE checks, refreshview, cleanview, bug validation, checkin/save, OraReview, and MergeReq-related ADE preflight commands. Do not wrap ADE commands with timeout 120; refreshview commonly needs up to 10 minutes, and PMC or SeedData-specific helpers may use longer budgets when documented.",
         "For actual PMC setup/run commands through scripts/ade-scripts/RunInView.sh, pass --full-fmwc in the ADE session that will run pmc_wrapper so FUSIONAPPS_SKIP_FMWC is not set; regular non-PMC ADE tasks should keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path.",
@@ -359,8 +419,8 @@
         "Before pmc_wrapper, check whether sqlplus works. If command -v sqlplus fails or sqlplus cannot load the Oracle client, and /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus plus lib exist, export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0 and LD_LIBRARY_PATH=${ORACLE_HOME}/lib in the same loaded ADE shell before pmc_wrapper; prepend ${ORACLE_HOME}/bin to PATH if needed.",
         "After pmc_wrapper finishes, verify the generated PMC HTML and premerge artifacts before reporting success.",
         "Treat PMC_CODE_ISSUE, PMC_CODE_ERROR, missing fusionapps/premerge/premerge_result.json, or a Central PMC section that contains only startup/initial checks as blocking.",
-        "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, run \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"rnerolu_bug-{{bug}}\" manually in the same confirmed ADE view, capture output to a .txt file, and require exit code 0 plus standalone PASS.",
-        "When manual bug validation PASSes, upload the .txt output to BugDB with $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload {{bug}} <txt-file>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
+        "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, hand off manual HCM bug validation to the parent runner with CODEX_RUNNER_COMMAND: hcm.bug-validation bug_ref={{bug}}. Bug validation does not need an ADE view; require exit code 0 plus standalone PASS before continuing.",
+        "When manual bug validation PASSes, upload the parent stdout log or captured .txt output to BugDB with $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload {{bug}} <txt-file>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
         "If any blocking PMC marker is present, do not report PMC success and do not proceed to mergereq; include CODEX_TRIGGER_STATUS: needs-input with the exact report path and blocker.",
         "Stop on the first failing command, report the command, exit code, and useful error text, and include CODEX_TRIGGER_STATUS: needs-input."
       ],
@@ -379,7 +439,7 @@
             "timeout_seconds": 21600,
             "argv": [
               "bash",
-              "/scratch/rnerolu/codeshare/projects/codex_local_runner/scripts/ade-scripts/RunInView.sh",
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh",
               "--full-fmwc",
               "-view",
               "{{view}}",
@@ -489,6 +549,57 @@
           "required": false,
           "pattern": "^[A-Za-z0-9_.@,+-]+$"
         }
+      ]
+    },
+    {
+      "id": "ade.merge-approved-transaction",
+      "label": "Merge Approved ADE Transaction",
+      "workflows": [
+        "ade",
+        "custom"
+      ],
+      "order": 82,
+      "template": "ade merge-approved view={{view}} transaction={{transaction}}",
+      "skill": "ade",
+      "natural_language": {
+        "enabled": true,
+        "execution": "direct",
+        "examples": [
+          "MergeReq is approved, proceed with merge",
+          "merge approved transaction after mergereq approval",
+          "approved mergereq can you proceed with merge"
+        ],
+        "parameter_hints": [
+          "Use the current issue or resumed session context to infer the ADE view and active transaction when the follow-up does not repeat them.",
+          "If the approved/move-ready MergeReq report card or target view cannot be verified, ask for the missing value with CODEX_TRIGGER_STATUS: needs-input.",
+          "Refresh the view before merge only when the requester explicitly allowed it and ADE state indicates refresh is needed."
+        ]
+      },
+      "instructions": [
+        "This intent is for post-approval merge only, not PMC and not MergeReq submit/resend.",
+        "Approved MergeReq merge: treat this as a post-approval ADE merge workflow. Verify the approved/move-ready report card and active view/transaction, refresh the view only if needed and allowed, then use `ade savetrans; ade beginmerge; ade mergetrans; ade endmerge`.",
+        "Do not rerun PMC and do not submit, resend, or reroute MergeReq unless explicitly requested.",
+        "Run merge commands from the confirmed ADE view and stop on the first ADE error."
+      ],
+      "parameters": [
+        {
+          "name": "view",
+          "label": "View name",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "transaction",
+          "label": "Transaction name",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
+      ],
+      "command_sequence": [
+        "ade savetrans",
+        "ade beginmerge",
+        "ade mergetrans",
+        "ade endmerge"
       ]
     },
     {
