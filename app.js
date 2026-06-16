@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260610-ios-issue-labels";
+  var ASSET_VERSION = "20260616-rag-study-modes";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -72,8 +72,42 @@
           {
             id: "ask",
             name: "Ask",
+            description: "Get a direct source-grounded answer with certification-relevant explanation.",
             fields: ["details"],
-            requiredFields: ["details"]
+            requiredFields: ["details"],
+            titleField: "details"
+          },
+          {
+            id: "teach",
+            name: "Teach",
+            description: "Learn a concept step by step through the uploaded certification material.",
+            fields: ["details"],
+            requiredFields: ["details"],
+            titleField: "details"
+          },
+          {
+            id: "quiz",
+            name: "Quiz",
+            description: "Generate practice questions and a cited answer key from the uploaded material.",
+            fields: ["details"],
+            requiredFields: ["details"],
+            titleField: "details"
+          },
+          {
+            id: "flashcards",
+            name: "Flashcards",
+            description: "Create concise source-grounded flashcards for revision.",
+            fields: ["details"],
+            requiredFields: ["details"],
+            titleField: "details"
+          },
+          {
+            id: "revise",
+            name: "Revise",
+            description: "Build a certification revision sheet with must-know points and checklist.",
+            fields: ["details"],
+            requiredFields: ["details"],
+            titleField: "details"
           }
         ]
       },
