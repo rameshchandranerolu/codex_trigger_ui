@@ -38,7 +38,8 @@
           id: "rag-current",
           name: "RAG Runner",
           owner: "rameshchandranerolu",
-          repo: "codex_rag_runner"
+          repo: "codex_rag_runner",
+          workflowIds: ["rag"]
         }
       ]
     },
@@ -780,7 +781,8 @@
         name: String(runner.name || runner.id || "Runner " + (index + 1)),
         owner: String(runner.owner || github.owner || ""),
         repo: String(runner.repo || github.repo || ""),
-        description: String(runner.description || "")
+        description: String(runner.description || ""),
+        workflowIds: Array.isArray(runner.workflowIds) ? runner.workflowIds.map(String) : []
       };
     });
   }
@@ -818,7 +820,8 @@
     if (!els.runnerSelect) {
       return;
     }
-    els.runnerSelect.innerHTML = state.runners.map(function (runner) {
+    var runners = visibleRunnersForSelectedWorkflow();
+    els.runnerSelect.innerHTML = runners.map(function (runner) {
       var selected = runner.id === state.selectedRunnerId ? " selected" : "";
       return '<option value="' + escapeHtml(runner.id) + '"' + selected + ">" + escapeHtml(runner.name) + "</option>";
     }).join("");
@@ -837,7 +840,8 @@
   }
 
   function selectedRunner() {
-    return runnerById(state.selectedRunnerId) || (state.runners.length ? state.runners[0] : null);
+    var runners = visibleRunnersForSelectedWorkflow();
+    return runnerByIdIn(runners, state.selectedRunnerId) || (runners.length ? runners[0] : null);
   }
 
   function selectedModelPreset() {
@@ -848,6 +852,42 @@
     return state.runners.find(function (runner) {
       return runner.id === runnerId;
     }) || null;
+  }
+
+  function runnerByIdIn(runners, runnerId) {
+    return runners.find(function (runner) {
+      return runner.id === runnerId;
+    }) || null;
+  }
+
+  function visibleRunnersForSelectedWorkflow() {
+    return visibleRunnersForWorkflow(state.selectedWorkflowId);
+  }
+
+  function visibleRunnersForWorkflow(workflowId) {
+    var specific = state.runners.filter(function (runner) {
+      return runner.workflowIds.indexOf(workflowId) !== -1;
+    });
+    if (specific.length) {
+      return specific;
+    }
+    var shared = state.runners.filter(function (runner) {
+      return !runner.workflowIds.length;
+    });
+    return shared.length ? shared : state.runners;
+  }
+
+  function ensureSelectedRunnerForWorkflow() {
+    var runners = visibleRunnersForSelectedWorkflow();
+    var workflow = selectedWorkflow();
+    var defaultRunner = workflow && workflow.defaultRunner ? String(workflow.defaultRunner) : "";
+    if (defaultRunner && runnerByIdIn(runners, defaultRunner)) {
+      state.selectedRunnerId = defaultRunner;
+    } else if (!runnerByIdIn(runners, state.selectedRunnerId)) {
+      state.selectedRunnerId = runners.length ? runners[0].id : "";
+    }
+    renderRunnerSelect();
+    applySelectedRunner(true);
   }
 
   function modelPresetById(presetId) {
@@ -919,23 +959,12 @@
       state.selectedCommands = [];
     }
     state.selectedWorkflowId = workflowId;
-    applyWorkflowDefaultRunner();
+    ensureSelectedRunnerForWorkflow();
     var operation = firstOperation(selectedWorkflow());
     state.selectedOperationId = operation ? operation.id : "";
     ensureSelectedProjectForWorkflow();
     renderDynamicFields();
     renderCommandBuilder();
-  }
-
-  function applyWorkflowDefaultRunner() {
-    var workflow = selectedWorkflow();
-    var defaultRunner = workflow && workflow.defaultRunner ? String(workflow.defaultRunner) : "";
-    if (!defaultRunner || !runnerById(defaultRunner)) {
-      return;
-    }
-    state.selectedRunnerId = defaultRunner;
-    renderRunnerSelect();
-    applySelectedRunner(true);
   }
 
   function ensureSelectedProjectForWorkflow() {

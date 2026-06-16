@@ -16,7 +16,10 @@
         "name": "RAG Runner",
         "owner": "rameshchandranerolu",
         "repo": "codex_rag_runner",
-        "description": "Current VM RAG-only runner"
+        "description": "Current VM RAG-only runner",
+        "workflowIds": [
+          "rag"
+        ]
       },
       {
         "id": "mumbai619658",
