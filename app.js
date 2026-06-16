@@ -33,6 +33,12 @@
           name: "Mumbai 619658",
           owner: "rameshchandranerolu",
           repo: "codex_automation_mumbai619658"
+        },
+        {
+          id: "rag-current",
+          name: "RAG Runner",
+          owner: "rameshchandranerolu",
+          repo: "codex_rag_runner"
         }
       ]
     },
@@ -54,6 +60,22 @@
       }
     ],
     workflows: [
+      {
+        id: "rag",
+        name: "RAG Study",
+        kind: "Study",
+        description: "Ask source-grounded study questions over files indexed by the standalone RAG runner.",
+        defaultRunner: "rag-current",
+        requiresProject: false,
+        operations: [
+          {
+            id: "ask",
+            name: "Ask",
+            fields: ["details"],
+            requiredFields: ["details"]
+          }
+        ]
+      },
       {
         id: "project",
         name: "Project Work",
@@ -897,11 +919,23 @@
       state.selectedCommands = [];
     }
     state.selectedWorkflowId = workflowId;
+    applyWorkflowDefaultRunner();
     var operation = firstOperation(selectedWorkflow());
     state.selectedOperationId = operation ? operation.id : "";
     ensureSelectedProjectForWorkflow();
     renderDynamicFields();
     renderCommandBuilder();
+  }
+
+  function applyWorkflowDefaultRunner() {
+    var workflow = selectedWorkflow();
+    var defaultRunner = workflow && workflow.defaultRunner ? String(workflow.defaultRunner) : "";
+    if (!defaultRunner || !runnerById(defaultRunner)) {
+      return;
+    }
+    state.selectedRunnerId = defaultRunner;
+    renderRunnerSelect();
+    applySelectedRunner(true);
   }
 
   function ensureSelectedProjectForWorkflow() {
