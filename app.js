@@ -147,6 +147,19 @@
       placeholder: "39335023",
       taskLabel: "Bug number"
     },
+    personIdentifier: {
+      id: "personIdentifierInput",
+      label: "Person ID or name",
+      placeholder: "300100123456789 or Jane Smith",
+      taskLabel: "Person identifier"
+    },
+    toDb: {
+      id: "toDbInput",
+      label: "To DB",
+      placeholder: "defaultDB",
+      defaultValue: "defaultDB",
+      taskLabel: "To DB"
+    },
     backportType: {
       id: "backportTypeInput",
       label: "Backport type",
@@ -1186,6 +1199,11 @@
 
   function refreshSeedDataFields() {
     var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    if (workflow && workflow.id === "custom" && operation && operation.id === "copy-person-data") {
+      ensureStagingDefaults();
+      return;
+    }
     if (!workflow || workflow.id !== "seeddata") {
       return;
     }
@@ -1660,6 +1678,9 @@
     if (workflow.id === "custom" && operation && operation.id === "custom") {
       return false;
     }
+    if (workflow.id === "custom" && operation && operation.id === "copy-person-data") {
+      return false;
+    }
     return true;
   }
 
@@ -1991,6 +2012,31 @@
 
   function validateWorkflowFields(workflow) {
     if (!workflow) {
+      return;
+    }
+
+    var operation = selectedOperation();
+    if (workflow.id === "custom" && operation && operation.id === "copy-person-data") {
+      updateStagingUrlFromEnvironment();
+      if (!inputValue("personIdentifier")) {
+        throw new Error("Enter Person ID or name.");
+      }
+      if (!inputValue("stagingEnvironment")) {
+        throw new Error("Enter Staging environment.");
+      }
+      if (!inputValue("stagingDbUrl")) {
+        throw new Error("Enter Staging URL.");
+      }
+      if (!inputValue("stagingUsername")) {
+        throw new Error("Enter Staging username.");
+      }
+      if (!inputValue("stagingPassword")) {
+        throw new Error("Enter Staging password.");
+      }
+      var toDb = inputValue("toDb").trim();
+      if (toDb !== "defaultDB" && !/^jdbc:oracle:thin:@\S+$/i.test(toDb)) {
+        throw new Error("To DB must be defaultDB or a jdbc:oracle:thin:@ URL.");
+      }
       return;
     }
 

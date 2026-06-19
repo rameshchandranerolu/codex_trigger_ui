@@ -331,6 +331,29 @@
             "details"
           ],
           "titleField": "details"
+        },
+        {
+          "id": "copy-person-data",
+          "name": "Copy Person Data",
+          "description": "Prepare an approval-gated copy of one person and related assignment/search rows from staging to the local/default DB.",
+          "fields": [
+            "personIdentifier",
+            "stagingEnvironment",
+            "stagingDbUrl",
+            "stagingUsername",
+            "stagingPassword",
+            "toDb",
+            "details"
+          ],
+          "requiredFields": [
+            "personIdentifier",
+            "stagingEnvironment",
+            "stagingDbUrl",
+            "stagingUsername",
+            "stagingPassword",
+            "toDb"
+          ],
+          "titleField": "personIdentifier"
         }
       ]
     }
