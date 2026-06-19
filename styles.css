@@ -323,6 +323,29 @@ button {
   letter-spacing: 0;
 }
 
+.command-recipes,
+.command-card-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.command-recipes {
+  margin-top: 10px;
+}
+
+.command-recipe-button {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 8px 10px;
+}
+
 .command-adder {
   flex: 1;
   justify-content: flex-end;
@@ -377,6 +400,11 @@ button {
   background: #fff;
   color: var(--muted);
   font-weight: 700;
+}
+
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .empty-command-row {
@@ -509,6 +537,15 @@ button {
   .command-adder {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .command-recipes,
+  .command-card-actions {
+    align-items: stretch;
+  }
+
+  .command-recipe-button {
+    flex: 1 1 150px;
   }
 
   .command-adder select {

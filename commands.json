@@ -1,6 +1,136 @@
 {
   "commands": [
     {
+      "id": "bugdb.create-bug",
+      "label": "Create BugDB Bug",
+      "workflows": [
+        "custom",
+        "seeddata"
+      ],
+      "ui_group": "BugDB",
+      "runner_safe": true,
+      "order": 12,
+      "template": "bugdb create description={{description}} base_rptno={{base_rptno}}",
+      "skill": "dev-bugdb-helper",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "create a BugDB bug for HCM change validation",
+          "create bug with subject Payroll validation failure",
+          "create a new bug as duplicate/backport child of 39451267"
+        ],
+        "parameter_hints": [
+          "Use the provided subject or description as the BugDB subject through the repo-common bugdb_create_bug.py helper.",
+          "If base_rptno is supplied, preserve it as the base bug reference.",
+          "After creation, later catalog commands may use ${bug} for the created bug number."
+        ]
+      },
+      "instructions": [
+        "BugDB bug creation is approved only when the description/subject is explicit.",
+        "The parent runner executes runner_common/bugdb_create_bug.py and captures the created bug number as the sequence variable ${bug}.",
+        "Downstream commands can use ${bug}, ${bug_ref}, or ${txn} after this command completes."
+      ],
+      "parameters": [
+        {
+          "name": "description",
+          "label": "Bug subject/description",
+          "type": "textarea",
+          "rows": 3,
+          "required": true,
+          "pattern": "^[\\s\\S]+$"
+        },
+        {
+          "name": "base_rptno",
+          "label": "Base bug",
+          "required": false,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "fixby",
+          "label": "Fix By",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_. -]+$"
+        },
+        {
+          "name": "fixeta",
+          "label": "Fix ETA",
+          "required": false,
+          "pattern": "^[0-9A-Za-z-]+$"
+        },
+        {
+          "name": "component_version",
+          "label": "Component version",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        }
+      ],
+      "outputs": {
+        "bug": {
+          "json_key": "bug_number",
+          "patterns": [
+            "\"bug_number\"\\s*:\\s*\"?([0-9]+)\"?"
+          ],
+          "dry_run_value": "12345678"
+        },
+        "bug_ref": {
+          "template": "rnerolu_bug-${bug}"
+        },
+        "txn": {
+          "template": "rnerolu_bug-${bug}"
+        }
+      },
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Create a BugDB bug outside Codex through runner_common/bugdb_create_bug.py and capture the created bug number.",
+        "commands": [
+          {
+            "label": "Create BugDB bug outside Codex",
+            "timeout_seconds": 300,
+            "argv": [
+              "python3",
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/bugdb_create_bug.py",
+              "--description",
+              "{{description}}",
+              {
+                "when_param": "base_rptno",
+                "value": "--base-rptno"
+              },
+              {
+                "when_param": "base_rptno",
+                "value": "{{base_rptno}}"
+              },
+              {
+                "when_param": "fixby",
+                "value": "--fixby"
+              },
+              {
+                "when_param": "fixby",
+                "value": "{{fixby}}"
+              },
+              {
+                "when_param": "fixeta",
+                "value": "--fixeta"
+              },
+              {
+                "when_param": "fixeta",
+                "value": "{{fixeta}}"
+              },
+              {
+                "when_param": "component_version",
+                "value": "--component-version"
+              },
+              {
+                "when_param": "component_version",
+                "value": "{{component_version}}"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "ade.create-view",
       "label": "Create ADE View",
       "workflow": "ade",
@@ -11,7 +141,8 @@
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "branch",
@@ -26,7 +157,8 @@
           "name": "txn",
           "label": "Transaction",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         }
       ],
       "instructions": [
@@ -56,7 +188,9 @@
             ]
           }
         ]
-      }
+      },
+      "ui_group": "ADE",
+      "runner_safe": true
     },
     {
       "id": "ade.use-view",
@@ -71,7 +205,8 @@
           "required": true,
           "pattern": "^[A-Za-z0-9_.-]+$"
         }
-      ]
+      ],
+      "ui_group": "ADE"
     },
     {
       "id": "ade.begintrans",
@@ -92,7 +227,8 @@
           "required": true,
           "pattern": "^[A-Za-z0-9_.-]+$"
         }
-      ]
+      ],
+      "ui_group": "ADE"
     },
     {
       "id": "ade.status",
@@ -107,7 +243,8 @@
           "required": true,
           "pattern": "^[A-Za-z0-9_.-]+$"
         }
-      ]
+      ],
+      "ui_group": "ADE"
     },
     {
       "id": "ade.refresh-view",
@@ -164,9 +301,12 @@
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         }
-      ]
+      ],
+      "ui_group": "ADE",
+      "runner_safe": true
     },
     {
       "id": "ade.clean-view",
@@ -223,9 +363,12 @@
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         }
-      ]
+      ],
+      "ui_group": "ADE",
+      "runner_safe": true
     },
     {
       "id": "ade.destroy-view",
@@ -263,14 +406,16 @@
           "name": "view",
           "label": "View name",
           "required": false,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         }
       ],
       "command_sequence": [
         "ade pwv",
         "ade lsco",
         "ade destroyview -force -aborttrans {{view}}"
-      ]
+      ],
+      "ui_group": "ADE"
     },
     {
       "id": "ade.checkin-save",
@@ -283,15 +428,18 @@
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "txn",
           "label": "Transaction",
           "required": false,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         }
-      ]
+      ],
+      "ui_group": "ADE"
     },
     {
       "id": "orareview.create",
@@ -313,13 +461,15 @@
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "bug",
           "label": "Bug number",
           "required": true,
-          "pattern": "^[0-9]+$"
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
         },
         {
           "name": "reviewers",
@@ -342,7 +492,9 @@
             ]
           }
         ]
-      }
+      },
+      "ui_group": "Review",
+      "runner_safe": true
     },
     {
       "id": "hcm.bug-validation",
@@ -399,7 +551,8 @@
           "normalization": {
             "type": "bug_ref",
             "prefix": "rnerolu_bug-"
-          }
+          },
+          "sequence_ref": true
         }
       ],
       "runner_execution": {
@@ -419,7 +572,9 @@
       },
       "guidance": [
         "If BUGPRODWRONG is reported for a known HCM product, treat it as a possible HTOOLS2 hcm_bug_vp_map visibility problem in the runner session; use the appended Runner diagnostic before asking for BugDB product changes."
-      ]
+      ],
+      "ui_group": "HCM",
+      "runner_safe": true
     },
     {
       "id": "hcm.pmc",
@@ -512,16 +667,20 @@
           "normalization": {
             "type": "bug_number",
             "prefix": "rnerolu_bug-"
-          }
+          },
+          "sequence_ref": true
         },
         {
           "name": "view",
           "label": "ADE view",
           "required": true,
           "pattern": "^[A-Za-z0-9_.-]+$",
-          "description": "Confirmed ADE view whose active transaction is rnerolu_bug-{{bug}}."
+          "description": "Confirmed ADE view whose active transaction is rnerolu_bug-{{bug}}.",
+          "sequence_ref": true
         }
-      ]
+      ],
+      "ui_group": "HCM",
+      "runner_safe": true
     },
     {
       "id": "mergereq.submit",
@@ -584,13 +743,15 @@
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "bug",
           "label": "Bug number",
           "required": true,
-          "pattern": "^[0-9]+$"
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
         },
         {
           "name": "mode",
@@ -623,7 +784,9 @@
           "required": false,
           "pattern": "^[A-Za-z0-9_.@,+-]+$"
         }
-      ]
+      ],
+      "ui_group": "Merge",
+      "runner_safe": true
     },
     {
       "id": "ade.merge-approved-transaction",
@@ -662,13 +825,15 @@
           "name": "view",
           "label": "View name",
           "required": false,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "transaction",
           "label": "Transaction name",
           "required": false,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         }
       ],
       "command_sequence": [
@@ -691,6 +856,168 @@
               "{{view}}",
               "--",
               "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\ntransaction=\"{{transaction}}\"\nade pwv\nif [ -n \"$transaction\" ]; then\n  active_txn=\"\"\n  if [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n    active_txn=$(sed -n 's/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p' \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk 'NF {print $1}' | tail -1)\n  fi\n  if [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"$transaction\" ]; then\n    echo \"Runner diagnostic: active transaction mismatch: expected $transaction, found $active_txn\" >&2\n    exit 2\n  fi\nfi\nade savetrans\nade beginmerge\nade mergetrans\nade endmerge"
+            ]
+          }
+        ]
+      },
+      "ui_group": "Merge",
+      "runner_safe": true
+    },
+    {
+      "id": "bugdb.set-status",
+      "label": "Set BugDB Status",
+      "workflows": [
+        "custom"
+      ],
+      "order": 84,
+      "template": "bugdb set-status bug={{bug}} status={{status}} base_rptno={{base_rptno}}",
+      "skill": "dev-bugdb-helper",
+      "natural_language": {
+        "enabled": true,
+        "execution": "direct",
+        "examples": [
+          "close bug 39452875 as status 36",
+          "set BugDB bug 39452875 status to 36",
+          "close bug 39452875 as duplicate of 39451267"
+        ],
+        "parameter_hints": [
+          "Extract exactly one target BugDB bug number from the request or issue title.",
+          "Extract the requested numeric status exactly as written, including phrases such as status 36.",
+          "For duplicate/base references, extract exactly one duplicate/base bug number as base_rptno and use status 36.",
+          "If the target bug is missing or ambiguous, ask only for that value with CODEX_TRIGGER_STATUS: needs-input.",
+          "If the request is a BugDB duplicate close and the duplicate/base bug is clear, status 36 is implied even when the text does not repeat the status code. Duplicate closes must never use status 96."
+        ]
+      },
+      "instructions": [
+        "BugDB status changes are cataloged state-changing work. When the target bug and numeric status are unambiguous, emit CODEX_RUNNER_COMMAND: bugdb.set-status bug=<bugid> status=<status> [base_rptno=<bugid>] instead of asking for a second approval or hand-writing CODEX_RUNNER_SHELL.",
+        "Preserve the numeric status exactly as requested. For duplicate closes, use status 36. Never substitute status 96 for a duplicate close.",
+        "Use BugDB MCP only for read-only preflight when useful. The parent runner performs the mutation through dev-bugdb-helper and verifies by BugDB readback.",
+        "Do not use query-audit as a required success gate for this command; audit/report endpoints can be slow and must not turn a successful status update plus readback into a failed runner result."
+      ],
+      "parameters": [
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "status",
+          "label": "Status",
+          "required": true,
+          "pattern": "^[0-9]+$"
+        },
+        {
+          "name": "base_rptno",
+          "label": "Duplicate/base bug",
+          "required": false,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Set BugDB status outside Codex through dev-bugdb-helper, preserving the requested numeric status and verifying by readback.",
+        "commands": [
+          {
+            "label": "Set BugDB status outside Codex",
+            "timeout_seconds": 300,
+            "argv": [
+              "bash",
+              "-c",
+              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh\"\nBUG=\"{{bug}}\"\nSTATUS=\"{{status}}\"\nBASE_RPTNO=\"{{base_rptno}}\"\nif [ -n \"$BASE_RPTNO\" ]; then\n  if [ -z \"$STATUS\" ]; then\n    STATUS=36\n  elif [ \"$STATUS\" != \"36\" ]; then\n    echo \"Duplicate BugDB closes must use status 36; got status ${STATUS}.\" >&2\n    exit 2\n  fi\nfi\nif [ -z \"$STATUS\" ]; then\n  echo \"Missing BugDB status. Provide status=<number>, or provide base_rptno for duplicate close status 36.\" >&2\n  exit 2\nfi\nif [ ! -x \"$BUGDB\" ]; then\n  echo \"Missing BugDB helper: $BUGDB\" >&2\n  exit 127\nfi\necho \"Preflight: reading target bug ${BUG}\"\ntarget_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-target.XXXXXX\")\npayload_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-payload.XXXXXX\")\nfinal_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-final.XXXXXX\")\ncleanup() { rm -f \"$target_file\" \"$payload_file\" \"$final_file\"; }\ntrap cleanup EXIT\n\"$BUGDB\" --compact bug-get \"$BUG\" --size 1 | tee \"$target_file\"\nif [ -n \"$BASE_RPTNO\" ]; then\n  echo \"Preflight: reading base bug ${BASE_RPTNO}\"\n  \"$BUGDB\" --compact bug-get \"$BASE_RPTNO\" --size 1\n  /bin/python3.11 -c 'import json, pathlib, sys\nitem=(json.loads(pathlib.Path(sys.argv[1]).read_text()).get(\"items\") or [{}])[0]\nif not item:\n    raise SystemExit(\"bug-get returned no target bug\")\nstatus=int(sys.argv[2])\nbase=sys.argv[3]\ndef first(*values, default=None):\n    for value in values:\n        if value is not None:\n            return value\n    return default\npayload={\n    \"product_id\": first(item.get(\"product_id\")),\n    \"component\": first(item.get(\"component\")),\n    \"component_version\": first(item.get(\"component_version\"), default=\"0.0.0.0\"),\n    \"status\": status,\n    \"bug_type\": first(item.get(\"bug_type\")),\n    \"gops\": first(item.get(\"gops\"), default=\"G\"),\n    \"release_status\": first(item.get(\"rs_release_status\"), default=\"D\"),\n    \"database_version\": first(item.get(\"database_version\"), default=\"N/A\"),\n    \"product_line_id\": first(item.get(\"product_line_id\"), item.get(\"os\")),\n    \"os_version\": first(item.get(\"os_version\"), default=\"NO DATA\"),\n    \"release\": first(item.get(\"release\"), default=\"$null\"),\n    \"severity\": first(item.get(\"severity\")),\n    \"desirability\": first(item.get(\"desirability\"), default=\"$null\"),\n    \"support_contact\": first(item.get(\"support_contact\")),\n    \"assignee\": first(item.get(\"assignee\")),\n    \"customer\": first(item.get(\"customer\"), default=\"INTERNAL\"),\n    \"subject\": first(item.get(\"subject\")),\n    \"security_flag\": first(item.get(\"security_flag\"), default=\"N\"),\n    \"mail_response_type\": first(item.get(\"mail_response_type\"), default=\"E\"),\n    \"base_rptno\": int(base),\n}\nprint(json.dumps(payload, separators=(\",\", \":\")))' \"$target_file\" \"$STATUS\" \"$BASE_RPTNO\" > \"$payload_file\"\n  echo \"Updating ${BUG} to requested status ${STATUS} with base_rptno=${BASE_RPTNO}\"\n  \"$BUGDB\" --compact bug-update \"$BUG\" --payload-file \"$payload_file\"\nelse\n  echo \"Updating ${BUG} to requested status ${STATUS}\"\n  \"$BUGDB\" --compact set-status \"$BUG\" \"$STATUS\"\nfi\necho \"Verification: reading updated bug ${BUG}\"\n\"$BUGDB\" --compact bug-get \"$BUG\" --size 1 | tee \"$final_file\"\n/bin/python3.11 -c 'import json, pathlib, sys\nitem=(json.loads(pathlib.Path(sys.argv[1]).read_text()).get(\"items\") or [{}])[0]\nexpected_status=int(sys.argv[2])\nexpected_base=sys.argv[3]\nactual_status=item.get(\"status\")\nif actual_status != expected_status:\n    raise SystemExit(\"BugDB readback status mismatch: expected %s, got %s\" % (expected_status, actual_status))\nif expected_base:\n    actual_base=item.get(\"base_rptno\")\n    if str(actual_base) != str(expected_base):\n        raise SystemExit(\"BugDB readback base_rptno mismatch: expected %s, got %s\" % (expected_base, actual_base))\nprint(\"Verified BugDB readback: status=%s%s\" % (actual_status, (\" base_rptno=\" + str(item.get(\"base_rptno\"))) if expected_base else \"\"))' \"$final_file\" \"$STATUS\" \"$BASE_RPTNO\""
+            ]
+          }
+        ]
+      },
+      "ui_group": "BugDB",
+      "runner_safe": true
+    },
+    {
+      "id": "bugdb.bugsmart-closure",
+      "label": "Fill BugSmart Closure",
+      "workflows": [
+        "custom",
+        "seeddata"
+      ],
+      "ui_group": "BugDB",
+      "runner_safe": true,
+      "order": 85,
+      "template": "bugdb bugsmart-closure bug={{bug}}",
+      "skill": "dev-bugdb-helper",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "fill bug closure template for bug 39452875",
+          "post BugSmart closure for 39452875",
+          "complete bugclosure with functional and technical summaries"
+        ],
+        "parameter_hints": [
+          "Extract exactly one BugDB bug number.",
+          "Use the supplied functional summary, testing recommendation, and technical summary as the closure template fields.",
+          "If the closure text is missing, ask for the missing fields instead of inventing them."
+        ]
+      },
+      "instructions": [
+        "BugSmart closure posts the Fusion HCM closure template comment through dev-bugdb-helper bugsmart-closure.",
+        "This command is deterministic only when the three closure text fields are supplied by the requester or by prior approved context.",
+        "The helper does not update Bug Type (FusionApps); handle tracking group updates separately when validation requires them."
+      ],
+      "parameters": [
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "functional_summary",
+          "label": "Functional summary",
+          "type": "textarea",
+          "rows": 3,
+          "required": true,
+          "pattern": "^[\\s\\S]+$"
+        },
+        {
+          "name": "repro_testing_recommendations",
+          "label": "Repro/testing recommendations",
+          "type": "textarea",
+          "rows": 3,
+          "required": true,
+          "pattern": "^[\\s\\S]+$"
+        },
+        {
+          "name": "technical_summary",
+          "label": "Technical summary",
+          "type": "textarea",
+          "rows": 3,
+          "required": true,
+          "pattern": "^[\\s\\S]+$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Post the Fusion HCM BugSmart closure template through dev-bugdb-helper.",
+        "commands": [
+          {
+            "label": "Post BugSmart closure outside Codex",
+            "timeout_seconds": 300,
+            "argv": [
+              "/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh",
+              "--compact",
+              "bugsmart-closure",
+              "{{bug}}",
+              "--functional-summary",
+              "{{functional_summary}}",
+              "--repro-testing-recommendations",
+              "{{repro_testing_recommendations}}",
+              "--technical-summary",
+              "{{technical_summary}}",
+              "--non-interactive",
+              "--yes"
             ]
           }
         ]
@@ -760,7 +1087,8 @@
           "required": false,
           "pattern": "^[A-Za-z0-9_.-]+$"
         }
-      ]
+      ],
+      "ui_group": "Inspect"
     },
     {
       "id": "project.inspect",
@@ -805,7 +1133,9 @@
           "required": false,
           "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$"
         }
-      ]
+      ],
+      "ui_group": "Inspect",
+      "runner_safe": true
     },
     {
       "id": "project.run-tests",
@@ -823,7 +1153,8 @@
           "required": false,
           "pattern": "^[A-Za-z0-9_ ./,:@+=-]+$"
         }
-      ]
+      ],
+      "ui_group": "Inspect"
     }
   ]
 }

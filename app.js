@@ -464,6 +464,48 @@
     stagingEnvironments: null
   };
 
+  var commandRecipes = [
+    {
+      id: "refresh-clean-validation-pmc",
+      label: "Refresh + Clean + Validate + PMC",
+      workflows: ["custom", "seeddata"],
+      commands: [
+        { id: "ade.refresh-view", params: { view: "$adeView" } },
+        { id: "ade.clean-view", params: { view: "$adeView" } },
+        { id: "hcm.bug-validation", params: { bug_ref: "$bugNumber" } },
+        { id: "hcm.pmc", params: { bug: "$bugNumber", view: "$adeView" } }
+      ]
+    },
+    {
+      id: "create-bug-view-validation-pmc",
+      label: "Create Bug + View + Validate + PMC",
+      workflows: ["custom", "seeddata"],
+      commands: [
+        { id: "bugdb.create-bug", params: {} },
+        { id: "ade.create-view", params: { view: "$adeView", branch: "$adeBranch", txn: "${bug_ref}" } },
+        { id: "hcm.bug-validation", params: { bug_ref: "${bug}" } },
+        { id: "hcm.pmc", params: { bug: "${bug}", view: "$adeView" } }
+      ]
+    },
+    {
+      id: "create-view-orareview",
+      label: "Create View + OraReview",
+      workflows: ["custom"],
+      commands: [
+        { id: "ade.create-view", params: { view: "$adeView", branch: "$adeBranch", txn: "$adeTxn" } },
+        { id: "orareview.create", params: { view: "$adeView", bug: "$bugNumber" } }
+      ]
+    },
+    {
+      id: "close-duplicate",
+      label: "Close Duplicate Bug",
+      workflows: ["custom"],
+      commands: [
+        { id: "bugdb.set-status", params: { bug: "$bugNumber", status: "36" } }
+      ]
+    }
+  ];
+
   var els = {};
 
   function init() {
@@ -1052,6 +1094,9 @@
     if (operationInput) {
       operationInput.addEventListener("change", function () {
         state.selectedOperationId = operationInput.value;
+        if (!commandBuilderEnabled(selectedWorkflow())) {
+          state.selectedCommands = [];
+        }
         renderDynamicFields();
         updatePreview();
       });
@@ -1263,7 +1308,7 @@
   function renderCommandBuilder() {
     var workflow = selectedWorkflow();
     var commands = commandsForWorkflow(workflow ? workflow.id : "");
-    if (!els.commandBuilder || !commands.length) {
+    if (!els.commandBuilder || !commands.length || !commandBuilderEnabled(workflow)) {
       if (els.commandBuilder) {
         els.commandBuilder.innerHTML = "";
       }
@@ -1271,21 +1316,35 @@
     }
 
     var selectedId = commands[0].id;
+    var recipes = commandRecipesForWorkflow(workflow.id);
     var html = [
       '<section class="command-panel" aria-label="Command sequence">',
       '<div class="command-panel-head">',
-      "<h3>Commands</h3>",
+      "<h3>Command Sequence</h3>",
       '<div class="command-adder">',
       '<select id="commandSelect">',
       commands.map(function (command) {
-        return '<option value="' + escapeHtml(command.id) + '">' + escapeHtml(command.label || command.id) + "</option>";
+        return '<option value="' + escapeHtml(command.id) + '">' + escapeHtml(commandOptionLabel(command)) + "</option>";
       }).join(""),
       "</select>",
       '<button id="addCommandButton" class="secondary-button" type="button">Add</button>',
       "</div>",
-      "</div>",
-      '<div class="command-list">'
+      "</div>"
     ];
+
+    if (recipes.length) {
+      html.push(
+        '<div class="command-recipes">',
+        recipes.map(function (recipe) {
+          return '<button class="command-recipe-button" type="button" data-command-recipe="' + escapeHtml(recipe.id) + '">' + escapeHtml(recipe.label) + "</button>";
+        }).join(""),
+        "</div>"
+      );
+    }
+
+    html.push(
+      '<div class="command-list">'
+    );
 
     if (!state.selectedCommands.length) {
       html.push('<div class="empty-command-row">No commands selected</div>');
@@ -1312,10 +1371,25 @@
         addSelectedCommand(commandSelect ? commandSelect.value : selectedId);
       });
     }
+    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-command-recipe]"), function (button) {
+      button.addEventListener("click", function () {
+        applyCommandRecipe(button.getAttribute("data-command-recipe"));
+      });
+    });
 
     Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-remove-command]"), function (button) {
       button.addEventListener("click", function () {
         removeCommand(button.getAttribute("data-remove-command"));
+      });
+    });
+    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-move-command]"), function (button) {
+      button.addEventListener("click", function () {
+        moveCommand(button.getAttribute("data-move-command"), Number(button.getAttribute("data-move-direction") || "0"));
+      });
+    });
+    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-duplicate-command]"), function (button) {
+      button.addEventListener("click", function () {
+        duplicateCommand(button.getAttribute("data-duplicate-command"));
       });
     });
     Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-command-param]"), function (element) {
@@ -1342,7 +1416,12 @@
       '<article class="command-card">',
       '<div class="command-card-head">',
       "<strong>" + (index + 1) + ". " + escapeHtml(spec.label || spec.id) + "</strong>",
+      '<div class="command-card-actions">',
+      '<button class="icon-button" type="button" aria-label="Move command up" title="Move command up" data-move-command="' + escapeHtml(entry.uid) + '" data-move-direction="-1"' + (index === 0 ? " disabled" : "") + ">&uarr;</button>",
+      '<button class="icon-button" type="button" aria-label="Move command down" title="Move command down" data-move-command="' + escapeHtml(entry.uid) + '" data-move-direction="1"' + (index === state.selectedCommands.length - 1 ? " disabled" : "") + ">&darr;</button>",
+      '<button class="icon-button" type="button" aria-label="Duplicate command" title="Duplicate command" data-duplicate-command="' + escapeHtml(entry.uid) + '">+</button>',
       '<button class="icon-button" type="button" aria-label="Remove command" title="Remove command" data-remove-command="' + escapeHtml(entry.uid) + '">x</button>',
+      "</div>",
       "</div>",
       '<div class="command-param-grid">'
     ];
@@ -1413,6 +1492,91 @@
     updatePreview();
   }
 
+  function moveCommand(uid, direction) {
+    var index = state.selectedCommands.findIndex(function (entry) {
+      return entry.uid === uid;
+    });
+    var target = index + direction;
+    var temp;
+    if (index < 0 || target < 0 || target >= state.selectedCommands.length) {
+      return;
+    }
+    temp = state.selectedCommands[index];
+    state.selectedCommands[index] = state.selectedCommands[target];
+    state.selectedCommands[target] = temp;
+    renderCommandBuilder();
+    updatePreview();
+  }
+
+  function duplicateCommand(uid) {
+    var index = state.selectedCommands.findIndex(function (entry) {
+      return entry.uid === uid;
+    });
+    var original;
+    if (index < 0) {
+      return;
+    }
+    original = state.selectedCommands[index];
+    state.commandSerial += 1;
+    state.selectedCommands.splice(index + 1, 0, {
+      uid: "cmd" + state.commandSerial,
+      id: original.id,
+      params: Object.assign({}, original.params || {})
+    });
+    renderCommandBuilder();
+    updatePreview();
+  }
+
+  function commandRecipesForWorkflow(workflowId) {
+    return commandRecipes.filter(function (recipe) {
+      return !Array.isArray(recipe.workflows) || recipe.workflows.indexOf(workflowId) !== -1;
+    });
+  }
+
+  function recipeValue(value) {
+    if (value === "$bugNumber") {
+      return inputValue("bugNumber");
+    }
+    if (value === "$adeView") {
+      return inputValue("adeView");
+    }
+    if (value === "$adeBranch") {
+      return inputValue("adeBranch");
+    }
+    if (value === "$adeTxn") {
+      return inputValue("adeTxn");
+    }
+    return value;
+  }
+
+  function applyCommandRecipe(recipeId) {
+    var recipe = commandRecipes.find(function (item) {
+      return item.id === recipeId;
+    });
+    if (!recipe) {
+      return;
+    }
+    recipe.commands.forEach(function (item) {
+      var spec = commandSpec(item.id);
+      var params;
+      if (!spec) {
+        return;
+      }
+      params = defaultCommandParams(spec);
+      Object.keys(item.params || {}).forEach(function (name) {
+        params[normalizeParamName(name)] = recipeValue(item.params[name]);
+      });
+      state.commandSerial += 1;
+      state.selectedCommands.push({
+        uid: "cmd" + state.commandSerial,
+        id: item.id,
+        params: params
+      });
+    });
+    renderCommandBuilder();
+    updatePreview();
+  }
+
   function updateCommandParam(uid, paramName, value) {
     state.selectedCommands.forEach(function (entry) {
       if (entry.uid === uid) {
@@ -1435,6 +1599,8 @@
       } else if (name === "txn") {
         params[name] = inputValue("adeTxn");
       } else if (name === "bug") {
+        params[name] = inputValue("bugNumber");
+      } else if (name === "bug_ref") {
         params[name] = inputValue("bugNumber");
       } else {
         params[name] = "";
@@ -1486,6 +1652,17 @@
     return operationFields(operation);
   }
 
+  function commandBuilderEnabled(workflow) {
+    var operation = selectedOperation();
+    if (!workflow) {
+      return false;
+    }
+    if (workflow.id === "custom" && operation && operation.id === "custom") {
+      return false;
+    }
+    return true;
+  }
+
   function commandsForWorkflow(workflowId) {
     return state.commands.filter(function (command) {
       return commandAllowedForWorkflow(command, workflowId);
@@ -1525,8 +1702,18 @@
     }) || null;
   }
 
+  function commandOptionLabel(command) {
+    var group = command.ui_group || command.category || "";
+    var label = command.label || command.id;
+    return group ? group + " - " + label : label;
+  }
+
   function normalizeParamName(value) {
     return String(value || "").trim().toLowerCase().replace(/-/g, "_");
+  }
+
+  function valueHasSequenceReference(value) {
+    return /\$\{[A-Za-z][A-Za-z0-9_]*\}/.test(String(value || ""));
   }
 
   function queuedLabel() {
@@ -1792,8 +1979,14 @@
       }
     });
 
+    if (workflow.id === "custom" && operation && operation.id === "run" && !state.selectedCommands.length && !inputValue("details")) {
+      throw new Error("Add at least one command or enter additional inputs.");
+    }
+
     validateWorkflowFields(workflow);
-    validateSelectedCommands(workflow);
+    if (commandBuilderEnabled(workflow)) {
+      validateSelectedCommands(workflow);
+    }
   }
 
   function validateWorkflowFields(workflow) {
@@ -1956,11 +2149,11 @@
         }
         if (value && param.pattern) {
           var regex = new RegExp(param.pattern);
-          if (!regex.test(value)) {
+          if (!(param.sequence_ref && valueHasSequenceReference(value)) && !regex.test(value)) {
             throw new Error((param.label || name) + " for " + (spec.label || spec.id) + " is invalid.");
           }
         }
-        if (name === "view" && value) {
+        if (name === "view" && value && !valueHasSequenceReference(value)) {
           views[value] = true;
         }
       });
