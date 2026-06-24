@@ -133,7 +133,11 @@
     {
       "id": "ade.create-view",
       "label": "Create ADE View",
-      "workflow": "ade",
+      "workflows": [
+        "ade",
+        "seeddata",
+        "alm-backport"
+      ],
       "order": 10,
       "template": "ade createview view={{view}} branch={{branch}} txn={{txn}}",
       "parameters": [
@@ -191,6 +195,80 @@
       },
       "ui_group": "ADE",
       "runner_safe": true
+    },
+    {
+      "id": "ade.begin-backport-transaction",
+      "label": "Begin ADE Backport Transaction",
+      "workflows": [
+        "alm-backport"
+      ],
+      "order": 15,
+      "template": "ade begintrans -backport {{bug}} -fromtrans {{from_transaction}} -bl <view-label> {{options}}",
+      "parameters": [
+        {
+          "name": "view",
+          "label": "View name",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "bug",
+          "label": "Backport bug",
+          "required": true,
+          "pattern": "^[0-9]+$"
+        },
+        {
+          "name": "from_transaction",
+          "label": "Source transaction",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "branch",
+          "label": "ADE branch",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "normalization": {
+            "type": "ade_branch"
+          }
+        },
+        {
+          "name": "options",
+          "label": "Backport options",
+          "required": false,
+          "default": "-nocheckout",
+          "pattern": "^[-A-Za-z0-9_ ./]*$"
+        }
+      ],
+      "instructions": [
+        "ADE release backport transaction creation must happen outside the Codex child process.",
+        "Use this command after the backport bug has been created and the canonical release branch has been selected. For 26.07 the ADE base label series must be FUSIONAPPS_11.13.26.07.0_LINUX.X64, not a compact HWM-style series.",
+        "Before this handoff, verify the backport bug's BugDB setup by readback: Generic / Port Specific header field (GOPS, readback key gops) is I / Request For Inclusion; Bug Type (FusionApps) tracking group is Backport; status is 51; customer is INTERNAL -- FUSIONAPPS; and tags include CUSTOMER_IMPACT plus the release bundle tag for the target release, for example REL13BUNDLE-2607-PB8 for 26.07. If HCM bug validation names a different expected REL13BUNDLE tag, use that exact tag.",
+        "If ADE reports that the bug is neither a BLR, MLR, CI nor an RFI, do not retry this command unchanged; fix the BugDB GOPS value to I and verify the readback first.",
+        "The parent runner creates the ADE view if it is missing, captures the current view label, and runs ade begintrans -backport <backport_bug> -fromtrans <source_user>_bug-<base_bug> -bl <view_label> with any caller-supplied options such as -nocheckout.",
+        "Do not expect the new ADE backport transaction to be named <user>_bug-<bug>; ADE assigns the backport-format transaction name and should automatically fetch/use the source Bronze transaction. After begintrans, discover the actual active transaction from ade pwv/ade_info.vmd; if describetrans shows no backend branched elements and no checked-out files, run ade fetchtrans <source_user>_bug-<base_bug> -ade_merge -nogui from inside the open backport transaction before BVT or OraReview. Use the actual transaction name for settransproperty, save, and OraReview."
+      ],
+      "approval": {
+        "required": true,
+        "status": "needs-input",
+        "guidance": "Backport transaction creation is state-changing. Confirm the view, backport bug, source transaction, branch, BugDB GOPS=I / Request For Inclusion, Bug Type (FusionApps)=Backport, status=51, customer=INTERNAL -- FUSIONAPPS, CUSTOMER_IMPACT tag, and the target-release REL13BUNDLE tag first; after approval and readback, hand off with CODEX_RUNNER_COMMAND: ade.begin-backport-transaction."
+      },
+      "runner_execution": {
+        "enabled": true,
+        "allow_approval_required": true,
+        "summary": "Create or enter the ADE release view and begin the backport transaction outside Codex.",
+        "commands": [
+          {
+            "label": "Begin ADE backport transaction outside Codex",
+            "timeout_seconds": 7200,
+            "argv": [
+              "bash",
+              "-c",
+              "set -euo pipefail\nview=\"{{view}}\"\nbranch=\"{{branch}}\"\nif [ -n \"$branch\" ]; then\n  branch=\"${branch%/}\"\n  case \"$branch\" in\n    */LATEST) branch=\"${branch%/LATEST}\" ;;\n  esac\n  branch=\"${branch##*/}\"\n  branch=\"${branch%.rdd}\"\n  case \"$branch\" in\n    FUSIONAPPS_*)\n      case \"$branch\" in\n        *_LINUX.X64*) ;;\n        *) branch=\"${branch}_LINUX.X64\" ;;\n      esac\n      ;;\n  esac\nfi\nif [ ! -d \"/ade/$view\" ]; then\n  if [ -z \"$branch\" ]; then\n    echo \"ADE branch is required when creating missing view $view\" >&2\n    exit 2\n  fi\n  echo \"Runner diagnostic: creating missing ADE view $view on $branch\"\n  ade showlabels -series \"$branch\" -latest\n  ade createview -series \"$branch\" -latest \"$view\"\nfi\nexec bash /scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh -view \"$view\" -- '\nset -euo pipefail\nbug=\"{{bug}}\"\nfrom_transaction=\"{{from_transaction}}\"\noptions=\"{{options}}\"\nview_label=\"${ADE_VIEW_LABEL:-}\"\nif [ -z \"$view_label\" ] && [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  view_label=$(sed -n \"s/^VIEW_LABEL[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  view_label=$(ade pwv | sed -n \"s/^VIEW_LABEL[[:space:]]*:[[:space:]]*//p\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  echo \"Unable to determine ADE view label for backport transaction\" >&2\n  exit 2\nfi\nactive_txn=\"\"\nif [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  active_txn=$(sed -n \"s/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"NONE\" ]; then\n  echo \"Runner diagnostic: ADE backport transaction is already active: $active_txn\"\n  ade pwv\n  exit 0\nfi\ncd \"$ADE_VIEW_ROOT\"\ncmd=(ade begintrans -backport \"$bug\" -fromtrans \"$from_transaction\" -bl \"$view_label\")\nif [ -n \"$options\" ]; then\n  # shellcheck disable=SC2206\n  extra_options=($options)\n  cmd+=(\"${extra_options[@]}\")\nfi\nprintf \"Runner diagnostic: executing\"\nprintf \" %q\" \"${cmd[@]}\"\nprintf \"\\n\"\n\"${cmd[@]}\"\nade pwv\n'"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "ade.use-view",
@@ -376,7 +454,8 @@
       "workflows": [
         "ade",
         "custom",
-        "seeddata"
+        "seeddata",
+        "alm-backport"
       ],
       "order": 58,
       "template": "ade destroyview -force -aborttrans {{view}}",
@@ -444,7 +523,10 @@
     {
       "id": "orareview.create",
       "label": "Create OraReview",
-      "workflow": "ade",
+      "workflows": [
+        "ade",
+        "alm-backport"
+      ],
       "order": 70,
       "template": "orareview create view={{view}} bug={{bug}} reviewers={{reviewers}}",
       "skill": "orareview",
@@ -470,6 +552,13 @@
           "required": true,
           "pattern": "^[0-9]+$",
           "sequence_ref": true
+        },
+        {
+          "name": "transaction",
+          "label": "ADE transaction",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "description": "Optional context for backport OraReview handoffs; CreateOra.sh derives the transaction from the view and bug."
         },
         {
           "name": "reviewers",
@@ -502,22 +591,24 @@
       "workflows": [
         "ade",
         "custom",
-        "seeddata"
+        "seeddata",
+        "alm-backport"
       ],
       "order": 75,
-      "template": "\"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{bug_ref}}\"",
+      "template": "\"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{validation_ref}}\"",
       "natural_language": {
         "enabled": true,
         "execution": "confirm-then-handoff",
         "examples": [
           "run bug validation for bug 30595896",
-          "validate HCM bug rnerolu_bug-30595896",
+          "validate HCM transaction rnerolu_bug-30595896",
+          "validate backport transaction rnerolu_rfi_backport_39394079_11.13.26.07.0_1",
           "run hcmbugvalidation for 30595896"
         ],
         "parameter_hints": [
-          "Extract exactly one bug number or rnerolu_bug-<number> reference from the request.",
-          "HCM bug validation does not need an ADE view. Once the bug reference is known and execution is approved, do not run hcmbugvalidation inside Codex; emit CODEX_RUNNER_COMMAND: hcm.bug-validation bug_ref=<bugid> so the parent runner executes it outside the child sandbox.",
-          "If the request has no bug id or more than one plausible bug id, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
+          "Extract exactly one ADE transaction name or bug-derived transaction reference from the request. For backports, use the actual ADE backport transaction discovered from ade pwv/ade_info.vmd, not <user>_bug-<backport_bug>.",
+          "HCM bug validation does not need an ADE view. Once the validation target is known and execution is approved, do not run hcmbugvalidation inside Codex; emit CODEX_RUNNER_COMMAND: hcm.bug-validation validation_ref=<actual_transaction> so the parent runner executes it outside the child sandbox.",
+          "If the request has no transaction/bug-derived validation target or more than one plausible target, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
       "postcondition": {
@@ -536,7 +627,11 @@
           "Do not print OAuth tokens or client secrets.",
           "For product_id 2419, Fix ETA maps to fixeta; write it in DD-MON-YYYY format such as 12-JUN-2026 because ISO date strings can fail with ORA-01861 even though readback displays ISO format. Platform (O/S) maps to product_line_id; when validation expects 226, write product_line_id=226 and verify BugDB readback shows os=226 before rerunning validation.",
           "Bug Type (FusionApps) is a tracking group, not a bug header field, and dev-bugdb-helper bugsmart-closure only posts the closure template comment; it does not update tracking group data.",
+          "When using dev-bugdb-helper for field updates, use supported syntax only: bug-update <rptno> --payload-file <json> for header fields, bug-update-transactions <rptno> --payload-file <json> for transaction or tracking-group fields, or raw <METHOD> <path> with --data-json/--payload-json and no trailing bug id. The helper does not support --set or --tg flags; construct a JSON payload file from current readback plus only the approved overrides, then pass that file with --payload-file. For FusionApps tracking-group updates, put the tg array in that JSON payload, for example {\"reassign_bug\":\"N\",\"tg\":[{\"tg_id\":2963,\"tg_operation\":\"C\",\"tg_new_value\":\"Backport\"}]}. Never append an extra bug number after a raw path.",
           "For a normal HCM defect/code-fix bug, set Bug Type (FusionApps) to Defect with dev-bugdb-helper bug-update-transactions, preserving required header fields and including reassign_bug=N plus tg=[{tg_id:2963,tg_operation:C,tg_new_value:Defect}]. Use Tracking, Fwd Port, or Backport only when the workflow explicitly calls for that type.",
+          "For an ADE backport validation customer mismatch, keep the backport bug customer as INTERNAL -- FUSIONAPPS and align the base bug customer to the backport bug customer when the requester has approved this cleanup.",
+          "For an ADE backport validation duplicate-release error caused by an earlier discarded backport bug, update only the discarded stale bug so it is no longer an active candidate for the target release, then rerun validation for the fresh transaction.",
+          "When HCM bug validation reports tag mismatch and says BVT is enabled for the product/label series, do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, or other BVT evidence tags manually. Run /net/phoenix851379.appsdev.fusionappsdphx1.oraclevcn.com/scratch/share/tools/pmg_validate from inside the confirmed ADE view instead. Before invoking it, verify /scratch/tmp exists and is writable because the script writes logs there, and verify sqlplus works in the loaded ADE view; use the existing Oracle client fallback if sqlplus is missing or cannot load libraries. Capture pmg_validate output, accept PREMERGE_BVT_PASS or PREMERGE_FAST_TRACK only after the script/tool creates or validates that evidence, then rerun this hcm.bug-validation command.",
           "If BugDB MCP add_tracking_group_data_to_bug returns Unknown tracking group name for Bug Type (FusionApps), use the bug-update-transactions path instead of asking for manual input.",
           "Verify BugDB audit/readback after updates, including CHG: Fix ETA->... and CHG: Bug Type (FusionApps)->Defect when applicable.",
           "After applying explicit BugDB follow-up instructions, rerun validation and keep gating until exit code 0 plus standalone PASS."
@@ -544,10 +639,10 @@
       },
       "parameters": [
         {
-          "name": "bug_ref",
-          "label": "Bug reference",
+          "name": "validation_ref",
+          "label": "Validation target",
           "required": true,
-          "pattern": "^rnerolu_bug-[0-9]+$",
+          "pattern": "^[A-Za-z0-9_.-]+$",
           "normalization": {
             "type": "bug_ref",
             "prefix": "rnerolu_bug-"
@@ -565,7 +660,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\noutput_file=$(mktemp \"${TMPDIR:-/tmp}/hcmbugvalidation.XXXXXX\")\ncleanup() { rm -f \"$output_file\"; }\ntrap cleanup EXIT\nset +e\nif [ -n \"${HCMDEV_ROOT:-}\" ] && [ -x \"$HCMDEV_ROOT/bin/hcmbugvalidation\" ]; then\n  \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{bug_ref}}\" >\"$output_file\" 2>&1\nelse\n  hcmbugvalidation \"{{bug_ref}}\" >\"$output_file\" 2>&1\nfi\nvalidation_status=$?\nset -e\ncat \"$output_file\"\nif grep -q \"Bug is linked to an unrecognised bug product\" \"$output_file\"; then\n  product_id=$(sed -n 's/^[[:space:]]*\\* Found value of: //p' \"$output_file\" | tail -1 | tr -d '[:space:]')\n  case \",$product_id,\" in\n    *,2418,*|*,2419,*|*,2422,*|*,2425,*|*,4472,*|*,5750,*|*,9520,*|*,5695,*|*,5510,*|*,5512,*)\n      echo\n      echo \"Runner diagnostic: hcmbugvalidation reported BUGPRODWRONG for known HCM product ${product_id}.\"\n      echo \"Runner diagnostic: this usually means the runner session could not read HTOOLS2 hcm_bug_vp_map, not that the BugDB Product ID is wrong.\"\n      echo \"Runner diagnostic: HCMDEV_ROOT=${HCMDEV_ROOT:-}\"\n      echo \"Runner diagnostic: useToolsTst=${useToolsTst:-} useScriptsSchema=${useScriptsSchema:-} useBugAu=${useBugAu:-}\"\n      if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then\n        export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0\n        export LD_LIBRARY_PATH=${ORACLE_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}\n        export PATH=${ORACLE_HOME}/bin:${PATH}\n      fi\n      if [ -n \"${HCMDEV_ROOT:-}\" ] && [ -f \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\" ] && command -v sqlplus >/dev/null 2>&1; then\n        set +e\n        # checkerCommonProcs/getCredential is the same credential path hcmbugvalidation uses for hcmdit/hcmtools.\n        . \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\"\n        htools_pw=$(getCredential hcmdit hcmtools 1 2>/dev/null)\n        cred_status=$?\n        if [ $cred_status -eq 0 ] && [ -n \"$htools_pw\" ]; then\n          htools_counts=$(printf '%s\\n' \\\n            'set heading off feedback off pages 0 lines 200 trimspool on' \\\n            'whenever sqlerror exit failure rollback' \\\n            'select count(*) from hcm_bug_vp_map;' \\\n            \"select count(*) from hcm_bug_vp_map where product_id = ${product_id};\" | \\\n            sqlplus -s -L \"hcmtools/${htools_pw}@//phoenix56589.ad2.fusionappsdphx1.oraclevcn.com:1521/pdbhtools.ad2.fusionappsdphx1.oraclevcn.com\" 2>&1)\n          htools_status=$?\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map query exit=${htools_status}.\"\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map counts:\"\n          printf '%s\\n' \"$htools_counts\" | sed 's/^/  /'\n        else\n          echo \"Runner diagnostic: unable to retrieve hcmdit/hcmtools credential for HTOOLS2 product-map check.\"\n        fi\n        set -e\n      else\n        echo \"Runner diagnostic: skipped HTOOLS2 product-map check because sqlplus or checkerCommonProcs.sh is unavailable.\"\n      fi\n      ;;\n  esac\nfi\nexit $validation_status"
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\noutput_file=$(mktemp \"${TMPDIR:-/tmp}/hcmbugvalidation.XXXXXX\")\ncleanup() { rm -f \"$output_file\"; }\ntrap cleanup EXIT\nset +e\nif [ -n \"${HCMDEV_ROOT:-}\" ] && [ -x \"$HCMDEV_ROOT/bin/hcmbugvalidation\" ]; then\n  \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{validation_ref}}\" >\"$output_file\" 2>&1\nelse\n  hcmbugvalidation \"{{validation_ref}}\" >\"$output_file\" 2>&1\nfi\nvalidation_status=$?\nset -e\ncat \"$output_file\"\nif grep -q \"Bug is linked to an unrecognised bug product\" \"$output_file\"; then\n  product_id=$(sed -n 's/^[[:space:]]*\\* Found value of: //p' \"$output_file\" | tail -1 | tr -d '[:space:]')\n  case \",$product_id,\" in\n    *,2418,*|*,2419,*|*,2422,*|*,2425,*|*,4472,*|*,5750,*|*,9520,*|*,5695,*|*,5510,*|*,5512,*)\n      echo\n      echo \"Runner diagnostic: hcmbugvalidation reported BUGPRODWRONG for known HCM product ${product_id}.\"\n      echo \"Runner diagnostic: this usually means the runner session could not read HTOOLS2 hcm_bug_vp_map, not that the BugDB Product ID is wrong.\"\n      echo \"Runner diagnostic: HCMDEV_ROOT=${HCMDEV_ROOT:-}\"\n      echo \"Runner diagnostic: useToolsTst=${useToolsTst:-} useScriptsSchema=${useScriptsSchema:-} useBugAu=${useBugAu:-}\"\n      if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then\n        export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0\n        export LD_LIBRARY_PATH=${ORACLE_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}\n        export PATH=${ORACLE_HOME}/bin:${PATH}\n      fi\n      if [ -n \"${HCMDEV_ROOT:-}\" ] && [ -f \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\" ] && command -v sqlplus >/dev/null 2>&1; then\n        set +e\n        # checkerCommonProcs/getCredential is the same credential path hcmbugvalidation uses for hcmdit/hcmtools.\n        . \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\"\n        htools_pw=$(getCredential hcmdit hcmtools 1 2>/dev/null)\n        cred_status=$?\n        if [ $cred_status -eq 0 ] && [ -n \"$htools_pw\" ]; then\n          htools_counts=$(printf '%s\\n' \\\n            'set heading off feedback off pages 0 lines 200 trimspool on' \\\n            'whenever sqlerror exit failure rollback' \\\n            'select count(*) from hcm_bug_vp_map;' \\\n            \"select count(*) from hcm_bug_vp_map where product_id = ${product_id};\" | \\\n            sqlplus -s -L \"hcmtools/${htools_pw}@//phoenix56589.ad2.fusionappsdphx1.oraclevcn.com:1521/pdbhtools.ad2.fusionappsdphx1.oraclevcn.com\" 2>&1)\n          htools_status=$?\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map query exit=${htools_status}.\"\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map counts:\"\n          printf '%s\\n' \"$htools_counts\" | sed 's/^/  /'\n        else\n          echo \"Runner diagnostic: unable to retrieve hcmdit/hcmtools credential for HTOOLS2 product-map check.\"\n        fi\n        set -e\n      else\n        echo \"Runner diagnostic: skipped HTOOLS2 product-map check because sqlplus or checkerCommonProcs.sh is unavailable.\"\n      fi\n      ;;\n  esac\nfi\nexit $validation_status"
             ]
           }
         ]
@@ -575,6 +670,60 @@
       ],
       "ui_group": "HCM",
       "runner_safe": true
+    },
+    {
+      "id": "hcm.bvt-pmg-validate",
+      "label": "HCM BVT PMG Validate",
+      "workflows": [
+        "ade",
+        "custom",
+        "alm-backport",
+        "seeddata"
+      ],
+      "order": 76,
+      "template": "pmg_validate view={{view}} bug={{bug}}",
+      "instructions": [
+        "Run this only when HCM bug validation reports tag mismatch and says BVT is enabled for the product/label series.",
+        "Do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, ENV_ID, or other evidence tags manually.",
+        "Run the shared pmg_validate script from inside the confirmed ADE view using the normal lightweight RunInView path first, pass the bug number when prompted, verify /scratch/tmp is writable first, and verify sqlplus works or use the Oracle client fallback.",
+        "If pmg_validate reports the view/transaction is not up to date or the premerge environment has not picked up the transaction, run /scratch/<user>/codeshare/refreshview.sh inside the same ADE view and retry pmg_validate in a bounded loop until it processes the transaction or the retry limit is reached.",
+        "If pmg_validate asks whether to merge without PREMERGE BVT PASS certification, answer N. Do not register fast track from automation unless the user explicitly approves that bypass.",
+        "Only after pmg_validate completes without errors, update the BugDB bug status to 39 using dev-bugdb-helper set-status and then rerun hcm.bug-validation for the same transaction.",
+        "After this command succeeds, rerun hcm.bug-validation for the same transaction and proceed only if validation exits 0 with standalone PASS."
+      ],
+      "parameters": [
+        {
+          "name": "view",
+          "label": "ADE view",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "allow_approval_required": true,
+        "summary": "Run BVT/premerge pmg_validate inside the confirmed ADE view.",
+        "commands": [
+          {
+            "label": "Run HCM BVT pmg_validate outside Codex",
+            "timeout_seconds": 21600,
+            "argv": [
+              "bash",
+              "/scratch/__TARGET_USER__/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh",
+              "-view",
+              "{{view}}",
+              "--",
+              "bash /scratch/__TARGET_USER__/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/hcm_bvt_pmg_validate.sh --bug {{bug}} --status-after-success 39"
+            ]
+          }
+        ]
+      }
     },
     {
       "id": "hcm.pmc",
@@ -628,7 +777,7 @@
         "Before pmc_wrapper, check whether sqlplus works. If command -v sqlplus fails or sqlplus cannot load the Oracle client, and /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus plus lib exist, export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0 and LD_LIBRARY_PATH=${ORACLE_HOME}/lib in the same loaded ADE shell before pmc_wrapper; prepend ${ORACLE_HOME}/bin to PATH if needed.",
         "After pmc_wrapper finishes, verify the generated PMC HTML and premerge artifacts before reporting success.",
         "Treat PMC_CODE_ISSUE, PMC_CODE_ERROR, missing fusionapps/premerge/premerge_result.json, or a Central PMC section that contains only startup/initial checks as blocking. A PMC Wrapper Summary or Central PMC Run Summary failure caused only by JUnits/JUnit tests is not a blocking PMC failure for MergeReq; record it separately as expected JUnit risk and continue if all non-JUnit PMC blockers are clean.",
-        "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, hand off manual HCM bug validation to the parent runner with CODEX_RUNNER_COMMAND: hcm.bug-validation bug_ref={{bug}}. Bug validation does not need an ADE view; require exit code 0 plus standalone PASS before continuing.",
+        "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, hand off manual HCM bug validation to the parent runner with CODEX_RUNNER_COMMAND: hcm.bug-validation validation_ref=<actual_transaction>. For a normal non-backport bug this can be the bug-derived transaction; for a backport use the actual ADE backport transaction name. Bug validation does not need an ADE view; require exit code 0 plus standalone PASS before continuing.",
         "When manual bug validation PASSes, upload the parent stdout log or captured .txt output to BugDB with $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload {{bug}} <txt-file>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
         "If any non-JUnit blocking PMC marker is present, do not report PMC success and do not proceed to mergereq; include CODEX_TRIGGER_STATUS: needs-input with the exact report path and blocker.",
         "Stop on the first failing command, report the command, exit code, and useful error text, and include CODEX_TRIGGER_STATUS: needs-input."
