@@ -5,6 +5,7 @@
       "label": "Create BugDB Bug",
       "workflows": [
         "custom",
+        "alm-backport",
         "seeddata"
       ],
       "ui_group": "BugDB",
@@ -351,7 +352,7 @@
       },
       "instructions": [
         "ADE refreshview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>.",
-        "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
+        "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path and writes per-view refresh logs under /scratch/<user>/codex-refreshview-logs/<view>/.",
         "Use at least the standard ADE lifecycle timeout budget; refreshview commonly needs up to 10 minutes.",
         "If refreshview fails with ade_info.vmd.free or another ADE lock, follow ADE persist lock guidance and do not remove ade_locks.wrd automatically."
       ],
@@ -369,7 +370,7 @@
               "-view",
               "{{view}}",
               "--",
-              "ade refreshview -latest"
+              "/scratch/__TARGET_USER__/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/refreshview_loop.sh --once"
             ]
           }
         ]
@@ -607,7 +608,7 @@
         ],
         "parameter_hints": [
           "Extract exactly one ADE transaction name or bug-derived transaction reference from the request. For backports, use the actual ADE backport transaction discovered from ade pwv/ade_info.vmd, not <user>_bug-<backport_bug>.",
-          "HCM bug validation does not need an ADE view. Once the validation target is known and execution is approved, do not run hcmbugvalidation inside Codex; emit CODEX_RUNNER_COMMAND: hcm.bug-validation validation_ref=<actual_transaction> so the parent runner executes it outside the child sandbox.",
+          "HCM bug validation can run with validation_ref=<actual_transaction>. For ADE backports where the transaction name is assigned after begintrans, it can also run with view=<view> and transaction_from_view=true; the parent runner derives the active transaction from the view before running hcmbugvalidation.",
           "If the request has no transaction/bug-derived validation target or more than one plausible target, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
@@ -619,8 +620,9 @@
         "failure_guidance": "Do not run subsequent commands. Summarize the useful validation output and wait for user verification or follow-up fix instructions."
       },
       "followup_remediation": {
-        "summary": "Use BugDB MCP for explicit BugDB updates needed to fix validation when available; if MCP lacks field-update support or cannot resolve FusionApps tracking groups, use dev-bugdb-helper for approved field and transaction updates, then rerun the same HCM bug validation command.",
+        "summary": "Use the parent-runner BugDB validation-field command for Fix ETA and Platform/O/S repairs. Use BugDB MCP for other explicit BugDB updates when available; if MCP lacks field-update support or cannot resolve FusionApps tracking groups, use dev-bugdb-helper for approved field and transaction updates, then rerun the same HCM bug validation command.",
         "instructions": [
+          "For HCM bug validation errors that name missing Bug Fix ETA or an incorrect O/S / Platform (O/S), do not hand-write a BugDB update shell. Emit CODEX_RUNNER_COMMAND: bugdb.fix-hcm-validation-fields bug=<bugid> fixeta=<DD-MON-YYYY> product_line_id=<expected_os_id>. Omit a field only when validation did not request it. The parent runner builds the required full BugDB header payload, fails on BugDB error JSON, verifies readback, and only then should validation be rerun.",
           "Prefer BugDB MCP for existing bug updates when the needed field-update tool exists.",
           "If MCP cannot update existing bug fields, use $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh for approved field updates only; CODEX_HOME should be /scratch/<runner-user>/.codex, the wrapper is pinned to /bin/python3.11, and global python3 must not be changed.",
           "Resolve friendly field labels such as Bug Fix ETA, Bug Fix By, Component Version, or Platform (O/S) to exact BugDB API keys before constructing a bug-update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys.",
@@ -641,13 +643,39 @@
         {
           "name": "validation_ref",
           "label": "Validation target",
-          "required": true,
+          "required": false,
           "pattern": "^[A-Za-z0-9_.-]+$",
           "normalization": {
             "type": "bug_ref",
             "prefix": "rnerolu_bug-"
           },
           "sequence_ref": true
+        },
+        {
+          "name": "view",
+          "label": "ADE view",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "bug",
+          "label": "Bug number compatibility input",
+          "required": false,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "transaction_from_view",
+          "label": "Derive active transaction from view",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
+        },
+        {
+          "name": "stop_on_failure",
+          "label": "Stop on failure",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
         }
       ],
       "runner_execution": {
@@ -660,7 +688,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\noutput_file=$(mktemp \"${TMPDIR:-/tmp}/hcmbugvalidation.XXXXXX\")\ncleanup() { rm -f \"$output_file\"; }\ntrap cleanup EXIT\nset +e\nif [ -n \"${HCMDEV_ROOT:-}\" ] && [ -x \"$HCMDEV_ROOT/bin/hcmbugvalidation\" ]; then\n  \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{validation_ref}}\" >\"$output_file\" 2>&1\nelse\n  hcmbugvalidation \"{{validation_ref}}\" >\"$output_file\" 2>&1\nfi\nvalidation_status=$?\nset -e\ncat \"$output_file\"\nif grep -q \"Bug is linked to an unrecognised bug product\" \"$output_file\"; then\n  product_id=$(sed -n 's/^[[:space:]]*\\* Found value of: //p' \"$output_file\" | tail -1 | tr -d '[:space:]')\n  case \",$product_id,\" in\n    *,2418,*|*,2419,*|*,2422,*|*,2425,*|*,4472,*|*,5750,*|*,9520,*|*,5695,*|*,5510,*|*,5512,*)\n      echo\n      echo \"Runner diagnostic: hcmbugvalidation reported BUGPRODWRONG for known HCM product ${product_id}.\"\n      echo \"Runner diagnostic: this usually means the runner session could not read HTOOLS2 hcm_bug_vp_map, not that the BugDB Product ID is wrong.\"\n      echo \"Runner diagnostic: HCMDEV_ROOT=${HCMDEV_ROOT:-}\"\n      echo \"Runner diagnostic: useToolsTst=${useToolsTst:-} useScriptsSchema=${useScriptsSchema:-} useBugAu=${useBugAu:-}\"\n      if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then\n        export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0\n        export LD_LIBRARY_PATH=${ORACLE_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}\n        export PATH=${ORACLE_HOME}/bin:${PATH}\n      fi\n      if [ -n \"${HCMDEV_ROOT:-}\" ] && [ -f \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\" ] && command -v sqlplus >/dev/null 2>&1; then\n        set +e\n        # checkerCommonProcs/getCredential is the same credential path hcmbugvalidation uses for hcmdit/hcmtools.\n        . \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\"\n        htools_pw=$(getCredential hcmdit hcmtools 1 2>/dev/null)\n        cred_status=$?\n        if [ $cred_status -eq 0 ] && [ -n \"$htools_pw\" ]; then\n          htools_counts=$(printf '%s\\n' \\\n            'set heading off feedback off pages 0 lines 200 trimspool on' \\\n            'whenever sqlerror exit failure rollback' \\\n            'select count(*) from hcm_bug_vp_map;' \\\n            \"select count(*) from hcm_bug_vp_map where product_id = ${product_id};\" | \\\n            sqlplus -s -L \"hcmtools/${htools_pw}@//phoenix56589.ad2.fusionappsdphx1.oraclevcn.com:1521/pdbhtools.ad2.fusionappsdphx1.oraclevcn.com\" 2>&1)\n          htools_status=$?\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map query exit=${htools_status}.\"\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map counts:\"\n          printf '%s\\n' \"$htools_counts\" | sed 's/^/  /'\n        else\n          echo \"Runner diagnostic: unable to retrieve hcmdit/hcmtools credential for HTOOLS2 product-map check.\"\n        fi\n        set -e\n      else\n        echo \"Runner diagnostic: skipped HTOOLS2 product-map check because sqlplus or checkerCommonProcs.sh is unavailable.\"\n      fi\n      ;;\n  esac\nfi\nexit $validation_status"
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\nvalidation_ref=\"{{validation_ref}}\"\nview=\"{{view}}\"\ntransaction_from_view=\"{{transaction_from_view}}\"\ncase \"$transaction_from_view\" in\n  true|True|1|yes|YES) derive_from_view=1 ;;\n  *) derive_from_view=0 ;;\nesac\nif [ \"$derive_from_view\" = 1 ] && [ -n \"$view\" ]; then\n  run_in_view=\"/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView\"\n  run_in_view=\"${run_in_view}.sh\"\n  pwv_output=$(bash \"$run_in_view\" -view \"$view\" -- \"ade pwv\")\n  printf '%s\\n' \"$pwv_output\"\n  derived_ref=$(printf '%s\\n' \"$pwv_output\" | awk -F: '/VIEW_TXN_NAME/ {gsub(/^[ \\t]+|[ \\t]+$/, \"\", $2); print $2; exit}')\n  if [ -n \"$derived_ref\" ]; then\n    validation_ref=\"$derived_ref\"\n  fi\nelif [ -z \"$validation_ref\" ] && [ -n \"$view\" ]; then\n  echo \"Missing validation_ref. For backports provide view and transaction_from_view=true so the runner can derive the active transaction.\" >&2\n  exit 2\nfi\nif [ -z \"$validation_ref\" ]; then\n  echo \"Missing validation_ref and unable to derive an active ADE transaction.\" >&2\n  exit 2\nfi\necho \"Runner diagnostic: using HCM bug validation target ${validation_ref}\"\noutput_file=$(mktemp \"${TMPDIR:-/tmp}/hcmbugvalidation.XXXXXX\")\ncleanup() { rm -f \"$output_file\"; }\ntrap cleanup EXIT\nset +e\nif [ \"$validation_ref\" = \"{{validation_ref}}\" ]; then\n  if [ -n \"${HCMDEV_ROOT:-}\" ] && [ -x \"$HCMDEV_ROOT/bin/hcmbugvalidation\" ]; then\n    \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{validation_ref}}\" >\"$output_file\" 2>&1\n  else\n    hcmbugvalidation \"{{validation_ref}}\" >\"$output_file\" 2>&1\n  fi\nelse\n  if [ -n \"${HCMDEV_ROOT:-}\" ] && [ -x \"$HCMDEV_ROOT/bin/hcmbugvalidation\" ]; then\n    \"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"$validation_ref\" >\"$output_file\" 2>&1\n  else\n    hcmbugvalidation \"$validation_ref\" >\"$output_file\" 2>&1\n  fi\nfi\nvalidation_status=$?\nset -e\ncat \"$output_file\"\nif grep -q \"Bug is linked to an unrecognised bug product\" \"$output_file\"; then\n  product_id=$(sed -n 's/^[[:space:]]*\\* Found value of: //p' \"$output_file\" | tail -1 | tr -d '[:space:]')\n  case \",$product_id,\" in\n    *,2418,*|*,2419,*|*,2422,*|*,2425,*|*,4472,*|*,5750,*|*,9520,*|*,5695,*|*,5510,*|*,5512,*)\n      echo\n      echo \"Runner diagnostic: hcmbugvalidation reported BUGPRODWRONG for known HCM product ${product_id}.\"\n      echo \"Runner diagnostic: this usually means the runner session could not read HTOOLS2 hcm_bug_vp_map, not that the BugDB Product ID is wrong.\"\n      echo \"Runner diagnostic: HCMDEV_ROOT=${HCMDEV_ROOT:-}\"\n      echo \"Runner diagnostic: useToolsTst=${useToolsTst:-} useScriptsSchema=${useScriptsSchema:-} useBugAu=${useBugAu:-}\"\n      if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then\n        export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0\n        export LD_LIBRARY_PATH=${ORACLE_HOME}/lib${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}\n        export PATH=${ORACLE_HOME}/bin:${PATH}\n      fi\n      if [ -n \"${HCMDEV_ROOT:-}\" ] && [ -f \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\" ] && command -v sqlplus >/dev/null 2>&1; then\n        set +e\n        # checkerCommonProcs/getCredential is the same credential path hcmbugvalidation uses for hcmdit/hcmtools.\n        . \"$HCMDEV_ROOT/bin/checkerCommonProcs.sh\"\n        htools_pw=$(getCredential hcmdit hcmtools 1 2>/dev/null)\n        cred_status=$?\n        if [ $cred_status -eq 0 ] && [ -n \"$htools_pw\" ]; then\n          htools_counts=$(printf '%s\\n' \\\n            'set heading off feedback off pages 0 lines 200 trimspool on' \\\n            'whenever sqlerror exit failure rollback' \\\n            'select count(*) from hcm_bug_vp_map;' \\\n            \"select count(*) from hcm_bug_vp_map where product_id = ${product_id};\" | \\\n            sqlplus -s -L \"hcmtools/${htools_pw}@//phoenix56589.ad2.fusionappsdphx1.oraclevcn.com:1521/pdbhtools.ad2.fusionappsdphx1.oraclevcn.com\" 2>&1)\n          htools_status=$?\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map query exit=${htools_status}.\"\n          echo \"Runner diagnostic: HTOOLS2 hcm_bug_vp_map counts:\"\n          printf '%s\\n' \"$htools_counts\" | sed 's/^/  /'\n        else\n          echo \"Runner diagnostic: unable to retrieve hcmdit/hcmtools credential for HTOOLS2 product-map check.\"\n        fi\n        set -e\n      else\n        echo \"Runner diagnostic: skipped HTOOLS2 product-map check because sqlplus or checkerCommonProcs.sh is unavailable.\"\n      fi\n      ;;\n  esac\nfi\nexit $validation_status"
             ]
           }
         ]
@@ -669,6 +697,80 @@
         "If BUGPRODWRONG is reported for a known HCM product, treat it as a possible HTOOLS2 hcm_bug_vp_map visibility problem in the runner session; use the appended Runner diagnostic before asking for BugDB product changes."
       ],
       "ui_group": "HCM",
+      "runner_safe": true
+    },
+    {
+      "id": "bugdb.fix-hcm-validation-fields",
+      "label": "Fix HCM Validation BugDB Fields",
+      "workflows": [
+        "custom",
+        "ade",
+        "seeddata",
+        "alm-backport"
+      ],
+      "order": 75.5,
+      "template": "bugdb fix-hcm-validation-fields bug={{bug}} fixeta={{fixeta}} product_line_id={{product_line_id}}",
+      "instructions": [
+        "Use this parent-runner command when HCM bug validation reports missing Bug Fix ETA or an incorrect O/S / Platform (O/S) value.",
+        "Do not hand-write dev-bugdb-helper bug-update payloads for these validation-field repairs. This command reads the current bug, builds the full required BugDB header payload, detects BugDB error JSON, verifies readback, and exits nonzero if the update did not land.",
+        "Use fixeta in DD-MON-YYYY format, for example 24-JUN-2026. Use product_line_id for the expected O/S value reported by validation, for example 226 for Linux-x86-64."
+      ],
+      "parameters": [
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "fixeta",
+          "label": "Fix ETA",
+          "required": false,
+          "pattern": "^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{4}$"
+        },
+        {
+          "name": "product_line_id",
+          "label": "Platform / O/S id",
+          "required": false,
+          "pattern": "^[0-9]+$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Update HCM validation BugDB fields through a full required-field payload and verify readback before validation is rerun.",
+        "commands": [
+          {
+            "label": "Fix HCM validation BugDB fields",
+            "timeout_seconds": 300,
+            "argv": [
+              "python3",
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/bugdb_hcm_validation_fix.py",
+              "--bug",
+              "{{bug}}",
+              {
+                "when_param": "fixeta",
+                "value": "--fixeta"
+              },
+              {
+                "when_param": "fixeta",
+                "value": "{{fixeta}}"
+              },
+              {
+                "when_param": "product_line_id",
+                "value": "--product-line-id"
+              },
+              {
+                "when_param": "product_line_id",
+                "value": "{{product_line_id}}"
+              },
+              "--helper",
+              "/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh"
+            ]
+          }
+        ]
+      },
+      "ui_group": "BugDB",
       "runner_safe": true
     },
     {
@@ -686,7 +788,7 @@
         "Run this only when HCM bug validation reports tag mismatch and says BVT is enabled for the product/label series.",
         "Do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, ENV_ID, or other evidence tags manually.",
         "Run the shared pmg_validate script from inside the confirmed ADE view using the normal lightweight RunInView path first, pass the bug number when prompted, verify /scratch/tmp is writable first, and verify sqlplus works or use the Oracle client fallback.",
-        "If pmg_validate reports the view/transaction is not up to date or the premerge environment has not picked up the transaction, run /scratch/<user>/codeshare/refreshview.sh inside the same ADE view and retry pmg_validate in a bounded loop until it processes the transaction or the retry limit is reached.",
+        "If pmg_validate reports the view/transaction is not up to date or the premerge environment has not picked up the transaction, run runner_common/scripts/ade-scripts/refreshview_loop.sh --once inside the same ADE view and retry pmg_validate in a bounded loop until it processes the transaction or the retry limit is reached. For the long-running BVT pickup watcher, run refreshview_loop.sh without --once. The helper writes per-view logs under /scratch/<user>/codex-refreshview-logs/<view>/. If ADE reports refreshview is already in progress, the helper waits until VIEW_REFRESH_STATE returns OK, then continues the label polling loop.",
         "If pmg_validate asks whether to merge without PREMERGE BVT PASS certification, answer N. Do not register fast track from automation unless the user explicitly approves that bypass.",
         "Only after pmg_validate completes without errors, update the BugDB bug status to 39 using dev-bugdb-helper set-status and then rerun hcm.bug-validation for the same transaction.",
         "After this command succeeds, rerun hcm.bug-validation for the same transaction and proceed only if validation exits 0 with standalone PASS."
@@ -703,6 +805,24 @@
           "label": "Bug number",
           "required": true,
           "pattern": "^[0-9]+$"
+        },
+        {
+          "name": "transaction_from_view",
+          "label": "Ignored compatibility flag",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
+        },
+        {
+          "name": "stop_on_failure",
+          "label": "Ignored compatibility flag",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
+        },
+        {
+          "name": "do_not_merge",
+          "label": "Ignored compatibility flag",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
         }
       ],
       "runner_execution": {
@@ -882,7 +1002,7 @@
               "-view",
               "{{view}}",
               "--",
-              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\nmode=\"{{mode}}\"\nbug=\"{{bug}}\"\nmanager=\"{{manager}}\"\nrelease=\"{{release}}\"\ncc=\"{{cc}}\"\nargs=(mergereq)\ncase \"$mode\" in\n  normal|\"\")\n    args+=(--yes-mail --bug \"$bug\" --aru_automate --agent --remove --resend)\n    ;;\n  check)\n    args+=(--check --bug \"$bug\" --agent --remove --resend)\n    ;;\n  db-only)\n    args+=(--db-only --bug \"$bug\" --agent --remove --resend)\n    ;;\n  no-mail)\n    args+=(--no-mail --bug \"$bug\" --agent --remove --resend)\n    ;;\n  *)\n    echo \"Unsupported MergeReq mode: $mode\" >&2\n    exit 2\n    ;;\nesac\nif [ -n \"$manager\" ]; then args+=(--manager \"$manager\"); fi\nif [ -n \"$release\" ]; then args+=(--release \"$release\"); fi\nif [ -n \"$cc\" ]; then args+=(--cc \"$cc\"); fi\nprintf 'Runner diagnostic: executing'\nprintf ' %q' \"${args[@]}\"\nprintf '\\n'\nexec \"${args[@]}\""
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\nmode=\"{{mode}}\"\nbug=\"{{bug}}\"\nmanager=\"{{manager}}\"\nrelease=\"{{release}}\"\ncc=\"{{cc}}\"\nargs=(mergereq)\ncase \"$mode\" in\n  normal|\"\")\n    args+=(--yes-mail --bug \"$bug\" --aru_automate --remove --resend)\n    ;;\n  check)\n    args+=(--check --bug \"$bug\" --remove --resend)\n    ;;\n  db-only)\n    args+=(--db-only --bug \"$bug\" --remove --resend)\n    ;;\n  no-mail)\n    args+=(--no-mail --bug \"$bug\" --remove --resend)\n    ;;\n  *)\n    echo \"Unsupported MergeReq mode: $mode\" >&2\n    exit 2\n    ;;\nesac\nif [ -n \"$manager\" ]; then args+=(--manager \"$manager\"); fi\nif [ -n \"$release\" ]; then args+=(--release \"$release\"); fi\nif [ -n \"$cc\" ]; then args+=(--cc \"$cc\"); fi\nprintf 'Runner diagnostic: executing'\nprintf ' %q' \"${args[@]}\"\nprintf '\\n'\nexec \"${args[@]}\""
             ]
           }
         ]
@@ -1088,6 +1208,7 @@
       "label": "Fill BugSmart Closure",
       "workflows": [
         "custom",
+        "alm-backport",
         "seeddata"
       ],
       "ui_group": "BugDB",
@@ -1127,7 +1248,7 @@
           "label": "Functional summary",
           "type": "textarea",
           "rows": 3,
-          "required": true,
+          "required": false,
           "pattern": "^[\\s\\S]+$"
         },
         {
@@ -1135,7 +1256,7 @@
           "label": "Repro/testing recommendations",
           "type": "textarea",
           "rows": 3,
-          "required": true,
+          "required": false,
           "pattern": "^[\\s\\S]+$"
         },
         {
@@ -1143,8 +1264,28 @@
           "label": "Technical summary",
           "type": "textarea",
           "rows": 3,
-          "required": true,
+          "required": false,
           "pattern": "^[\\s\\S]+$"
+        },
+        {
+          "name": "description",
+          "label": "Shorthand closure description",
+          "type": "textarea",
+          "rows": 3,
+          "required": false,
+          "pattern": "^[\\s\\S]*$"
+        },
+        {
+          "name": "non_interactive",
+          "label": "Compatibility flag",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
+        },
+        {
+          "name": "yes",
+          "label": "Compatibility flag",
+          "required": false,
+          "pattern": "^(true|false|True|False|1|0|yes|no)?$"
         }
       ],
       "runner_execution": {
@@ -1155,18 +1296,9 @@
             "label": "Post BugSmart closure outside Codex",
             "timeout_seconds": 300,
             "argv": [
-              "/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh",
-              "--compact",
-              "bugsmart-closure",
-              "{{bug}}",
-              "--functional-summary",
-              "{{functional_summary}}",
-              "--repro-testing-recommendations",
-              "{{repro_testing_recommendations}}",
-              "--technical-summary",
-              "{{technical_summary}}",
-              "--non-interactive",
-              "--yes"
+              "bash",
+              "-c",
+              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh\"\nBUG=\"{{bug}}\"\nFUNCTIONAL_SUMMARY=\"{{functional_summary}}\"\nREPRO_TESTING_RECOMMENDATIONS=\"{{repro_testing_recommendations}}\"\nTECHNICAL_SUMMARY=\"{{technical_summary}}\"\nDESCRIPTION=\"{{description}}\"\nif [ -z \"$FUNCTIONAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  FUNCTIONAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$REPRO_TESTING_RECOMMENDATIONS\" ]; then\n  REPRO_TESTING_RECOMMENDATIONS=\"Run HCM bug validation and BVT/premerge PMG validation for this backport transaction.\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ]; then\n  TECHNICAL_SUMMARY=\"$FUNCTIONAL_SUMMARY\"\nfi\nif [ -z \"$FUNCTIONAL_SUMMARY\" ]; then\n  echo \"Missing BugSmart functional_summary or description.\" >&2\n  exit 2\nfi\nexec \"$BUGDB\" --compact bugsmart-closure \"$BUG\" --functional-summary \"$FUNCTIONAL_SUMMARY\" --repro-testing-recommendations \"$REPRO_TESTING_RECOMMENDATIONS\" --technical-summary \"$TECHNICAL_SUMMARY\" --non-interactive --yes"
             ]
           }
         ]
