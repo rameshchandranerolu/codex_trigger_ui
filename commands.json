@@ -265,7 +265,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -euo pipefail\nview=\"{{view}}\"\nbranch=\"{{branch}}\"\nif [ -n \"$branch\" ]; then\n  branch=\"${branch%/}\"\n  case \"$branch\" in\n    */LATEST) branch=\"${branch%/LATEST}\" ;;\n  esac\n  branch=\"${branch##*/}\"\n  branch=\"${branch%.rdd}\"\n  case \"$branch\" in\n    FUSIONAPPS_*)\n      case \"$branch\" in\n        *_LINUX.X64*) ;;\n        *) branch=\"${branch}_LINUX.X64\" ;;\n      esac\n      ;;\n  esac\nfi\nif [ ! -d \"/ade/$view\" ]; then\n  if [ -z \"$branch\" ]; then\n    echo \"ADE branch is required when creating missing view $view\" >&2\n    exit 2\n  fi\n  echo \"Runner diagnostic: creating missing ADE view $view on $branch\"\n  ade showlabels -series \"$branch\" -latest\n  ade createview -series \"$branch\" -latest \"$view\"\nfi\nexec bash /scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh -view \"$view\" -- '\nset -euo pipefail\nbug=\"{{bug}}\"\nfrom_transaction=\"{{from_transaction}}\"\noptions=\"{{options}}\"\nview_label=\"${ADE_VIEW_LABEL:-}\"\nif [ -z \"$view_label\" ] && [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  view_label=$(sed -n \"s/^VIEW_LABEL[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  view_label=$(ade pwv | sed -n \"s/^VIEW_LABEL[[:space:]]*:[[:space:]]*//p\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  echo \"Unable to determine ADE view label for backport transaction\" >&2\n  exit 2\nfi\nactive_txn=\"\"\nif [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  active_txn=$(sed -n \"s/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"NONE\" ]; then\n  echo \"Runner diagnostic: ADE backport transaction is already active: $active_txn\"\n  ade pwv\n  exit 0\nfi\ncd \"$ADE_VIEW_ROOT\"\ncmd=(ade begintrans -backport \"$bug\" -fromtrans \"$from_transaction\" -bl \"$view_label\")\nif [ -n \"$options\" ]; then\n  # shellcheck disable=SC2206\n  extra_options=($options)\n  cmd+=(\"${extra_options[@]}\")\nfi\nprintf \"Runner diagnostic: executing\"\nprintf \" %q\" \"${cmd[@]}\"\nprintf \"\\n\"\n\"${cmd[@]}\"\nade pwv\n'"
+              "set -euo pipefail\nensure_ade_on_path() {\n  if command -v ade >/dev/null 2>&1; then\n    return 0\n  fi\n  local candidate\n  for candidate in /usr/dev_infra/platform/bin /usr/local/bin /usr/local/ade/bin /ade_autofs/ade_infra/ADE_MAIN_LINUX.rdd/LATEST/nde/ade/bin /ade_autofs/ade_infra/ADE_MAIN_LINUX.X64.rdd/LATEST/nde/ade/bin; do\n    if [ -x \"${candidate}/ade\" ]; then\n      PATH=\"${candidate}:${PATH}\"\n      export PATH\n      return 0\n    fi\n  done\n  return 1\n}\nensure_ade_on_path || { echo \"Required command not found: ade\" >&2; exit 127; }\nview=\"{{view}}\"\nbranch=\"{{branch}}\"\nif [ -n \"$branch\" ]; then\n  branch=\"${branch%/}\"\n  case \"$branch\" in\n    */LATEST) branch=\"${branch%/LATEST}\" ;;\n  esac\n  branch=\"${branch##*/}\"\n  branch=\"${branch%.rdd}\"\n  case \"$branch\" in\n    FUSIONAPPS_*)\n      case \"$branch\" in\n        *_LINUX.X64*) ;;\n        *) branch=\"${branch}_LINUX.X64\" ;;\n      esac\n      ;;\n  esac\nfi\nif [ ! -d \"/ade/$view\" ]; then\n  if [ -z \"$branch\" ]; then\n    echo \"ADE branch is required when creating missing view $view\" >&2\n    exit 2\n  fi\n  echo \"Runner diagnostic: creating missing ADE view $view on $branch\"\n  ade showlabels -series \"$branch\" -latest\n  ade createview -series \"$branch\" -latest \"$view\"\nfi\nexec bash /scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh -view \"$view\" -- '\nset -euo pipefail\nbug=\"{{bug}}\"\nfrom_transaction=\"{{from_transaction}}\"\noptions=\"{{options}}\"\nview_label=\"${ADE_VIEW_LABEL:-}\"\nif [ -z \"$view_label\" ] && [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  view_label=$(sed -n \"s/^VIEW_LABEL[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  view_label=$(ade pwv | sed -n \"s/^VIEW_LABEL[[:space:]]*:[[:space:]]*//p\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  echo \"Unable to determine ADE view label for backport transaction\" >&2\n  exit 2\nfi\nactive_txn=\"\"\nif [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  active_txn=$(sed -n \"s/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"NONE\" ]; then\n  echo \"Runner diagnostic: ADE backport transaction is already active: $active_txn\"\n  ade pwv\n  exit 0\nfi\ncd \"$ADE_VIEW_ROOT\"\ncmd=(ade begintrans -backport \"$bug\" -fromtrans \"$from_transaction\" -bl \"$view_label\")\nif [ -n \"$options\" ]; then\n  # shellcheck disable=SC2206\n  extra_options=($options)\n  cmd+=(\"${extra_options[@]}\")\nfi\nprintf \"Runner diagnostic: executing\"\nprintf \" %q\" \"${cmd[@]}\"\nprintf \"\\n\"\n\"${cmd[@]}\"\nade pwv\n'"
             ]
           }
         ]
@@ -854,7 +854,7 @@
         "seeddata"
       ],
       "order": 78,
-      "template": "hcm pmc bug={{bug}} txn=rnerolu_bug-{{bug}} view={{view}}",
+      "template": "hcm pmc bug={{bug}} view={{view}}",
       "natural_language": {
         "enabled": true,
         "execution": "confirm-then-run",
@@ -864,15 +864,15 @@
           "start PMC for rnerolu_bug-38602097"
         ],
         "parameter_hints": [
-          "Extract exactly one numeric bug id, accepting either a bare number or rnerolu_bug-<number> reference.",
-          "Derive the transaction name as rnerolu_bug-<bugid> and use that transaction to identify the target ADE view.",
+          "Extract exactly one numeric bug id, accepting either a bare number or rnerolu_bug-<number> reference for normal non-backport transactions.",
+          "Use the confirmed ADE view supplied by the requester or discovered from ADE. For normal non-backport transactions, rnerolu_bug-<bugid> may help identify the view. For ADE backports, do not derive or require rnerolu_bug-<bugid>; verify the supplied view with ade pwv and use its active backport-format transaction.",
           "Natural-language PMC requests such as run PMC for bug <bugid> are handled by Codex first; after the bug, view, and approval are clear, emit CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname> so the parent runner executes the reusable PMC command outside Codex.",
           "If no bug id, multiple bug ids, or multiple matching view/transaction candidates are found, ask for clarification with CODEX_TRIGGER_STATUS: needs-input."
         ]
       },
       "preflight": [
-        "Extract exactly one numeric bug id and derive transaction name rnerolu_bug-{{bug}}.",
-        "Identify the ADE view whose active or target transaction is rnerolu_bug-{{bug}} using ADE as the source of truth; if already inside a view, verify it with ade pwv first.",
+        "Extract exactly one numeric bug id and one ADE view for this PMC command.",
+        "Verify the confirmed ADE view with ade pwv. For normal non-backport bugs, the active or target transaction may be rnerolu_bug-{{bug}}. For ADE backports, the active transaction may be an ADE backport-format name and does not need to match the bug number.",
         "If no unique matching view and transaction can be identified, stop and ask the requester for the view or transaction choice with CODEX_TRIGGER_STATUS: needs-input.",
         "Before execution, summarize the identified view, transaction, and exact PMC command sequence that will run outside Codex."
       ],
@@ -882,7 +882,7 @@
         "guidance": "Codex should interpret natural-language PMC requests, confirm the target bug/view when needed, and hand off to the parent runner with CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname>. If either value is missing or ambiguous, ask only for that value. Do not run pmc_wrapper from inside the Codex session."
       },
       "instructions": [
-        "Run only inside the confirmed ADE view with active transaction rnerolu_bug-{{bug}}.",
+        "Run only inside the confirmed ADE view. For normal non-backport bugs, the active transaction is usually rnerolu_bug-{{bug}}; for ADE backports, use the view's active backport-format transaction from ade pwv.",
         "PMC execution must happen outside the Codex child process. For explicit catalog Commands blocks and Codex CODEX_RUNNER_COMMAND handoff lines, the parent runner executes runner_execution with the repo-common scripts/ade-scripts/RunInView.sh wrapper.",
         "If starting outside the view, use the repo-common scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
         "For pre-cleanview ADE lifecycle checks in a PMC workflow, including ade pwv, ade lsco, ade showlabels, ade refreshview, and ade cleanview, keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path; do not run a standalone --full-fmwc entry before refreshview.",
@@ -944,7 +944,7 @@
           "label": "ADE view",
           "required": true,
           "pattern": "^[A-Za-z0-9_.-]+$",
-          "description": "Confirmed ADE view whose active transaction is rnerolu_bug-{{bug}}.",
+          "description": "Confirmed ADE view for this bug. For ADE backports, the active transaction may be a backport-format name and does not need to match the bug number.",
           "sequence_ref": true
         }
       ],
@@ -1124,7 +1124,7 @@
               "-view",
               "{{view}}",
               "--",
-              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\ntransaction=\"{{transaction}}\"\nade pwv\nif [ -n \"$transaction\" ]; then\n  active_txn=\"\"\n  if [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n    active_txn=$(sed -n 's/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p' \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk 'NF {print $1}' | tail -1)\n  fi\n  if [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"$transaction\" ]; then\n    echo \"Runner diagnostic: active transaction mismatch: expected $transaction, found $active_txn\" >&2\n    exit 2\n  fi\nfi\nade savetrans\nade beginmerge\nade mergetrans\nade endmerge"
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\ntransaction=\"{{transaction}}\"\nrunner_root=\"/scratch/rnerolu/codeshare/projects/codex_automation\"\nrefresh_helper=\"$runner_root/runner_common/scripts/ade-scripts/refreshview_loop.sh\"\nade pwv\nif [ -n \"$transaction\" ]; then\n  active_txn=\"\"\n  if [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n    active_txn=$(sed -n 's/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p' \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk 'NF {print $1}' | tail -1)\n  fi\n  if [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"$transaction\" ]; then\n    echo \"Runner diagnostic: active transaction mismatch: expected $transaction, found $active_txn\" >&2\n    exit 2\n  fi\nfi\nade savetrans\nif [ -x \"$refresh_helper\" ]; then\n  echo \"Runner diagnostic: refreshing view to latest label before merge\"\n  \"$refresh_helper\" --once\nelse\n  echo \"Runner diagnostic: refresh helper missing at $refresh_helper; using ade refreshview -latest\"\n  ade refreshview -latest\nfi\nade pwv\nade beginmerge\nade mergetrans\nade endmerge"
             ]
           }
         ]

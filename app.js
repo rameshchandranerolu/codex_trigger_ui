@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260616-rag-study-modes";
+  var ASSET_VERSION = "20260702-simplified-workflow-form";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -172,6 +172,12 @@
       label: "Base bug number",
       placeholder: "39335023",
       taskLabel: "Base bug number"
+    },
+    backportBugNumber: {
+      id: "backportBugNumberInput",
+      label: "Backport bug number",
+      placeholder: "Optional",
+      taskLabel: "Existing backport bug number"
     },
     releaseYear: {
       id: "releaseYearInput",
@@ -1093,10 +1099,6 @@
     if (workflowHasOperations(workflow)) {
       html += operationSelectHtml(workflow);
     }
-    if (workflow.requiresProject) {
-      html += projectSelectHtml();
-    }
-
     workflowFields(workflow, operation).forEach(function (fieldName) {
       html += fieldHtml(fieldName);
     });
@@ -1111,15 +1113,6 @@
           state.selectedCommands = [];
         }
         renderDynamicFields();
-        updatePreview();
-      });
-    }
-
-    var projectInput = document.getElementById("projectInput");
-    if (projectInput) {
-      projectInput.addEventListener("change", function () {
-        state.selectedProjectAlias = projectInput.value;
-        updateSelectedWorkflowLabel();
         updatePreview();
       });
     }
@@ -1260,21 +1253,6 @@
       operations.map(function (operation) {
         var selected = operation.id === state.selectedOperationId ? " selected" : "";
         return '<option value="' + escapeHtml(operation.id) + '"' + selected + ">" + escapeHtml(operation.name || operation.id) + "</option>";
-      }).join(""),
-      "</select>",
-      "</label>"
-    ].join("");
-  }
-
-  function projectSelectHtml() {
-    var projects = projectOptionsForWorkflow();
-    return [
-      '<label class="field">',
-      "<span>Project</span>",
-      '<select id="projectInput">',
-      projects.map(function (project) {
-        var selected = project.alias === state.selectedProjectAlias ? " selected" : "";
-        return '<option value="' + escapeHtml(project.alias) + '"' + selected + ">" + escapeHtml(project.name || project.alias) + "</option>";
       }).join(""),
       "</select>",
       "</label>"
@@ -1922,10 +1900,6 @@
       lines.push("Operation: " + operation.id);
     }
 
-    if (workflow && workflow.requiresProject) {
-      lines.push("Project: " + state.selectedProjectAlias);
-    }
-
     lines.push("");
 
     if (context) {
@@ -1973,10 +1947,10 @@
     var requiredFields = operation && Array.isArray(operation.requiredFields) ? operation.requiredFields : [];
 
     if (!els.ownerInput.value.trim()) {
-      throw new Error("Enter the GitHub owner.");
+      throw new Error("Selected runner is missing a GitHub owner.");
     }
     if (!els.repoInput.value.trim()) {
-      throw new Error("Enter the GitHub repo.");
+      throw new Error("Selected runner is missing a GitHub repo.");
     }
     if (!workflow) {
       throw new Error("Select a workflow.");
@@ -1990,10 +1964,6 @@
     if (!workflowHasOperations(workflow)) {
       requiredFields = ["instructions"];
     }
-    if (workflow.requiresProject && !state.selectedProjectAlias) {
-      throw new Error("Select a project.");
-    }
-
     requiredFields.forEach(function (fieldName) {
       if (!inputValue(fieldName)) {
         throw new Error("Enter " + (fieldSpecs[fieldName] ? fieldSpecs[fieldName].label : fieldName) + ".");
@@ -2158,6 +2128,11 @@
     var baseBug = inputValue("baseBugNumber").trim();
     if (!/^\d+$/.test(baseBug)) {
       throw new Error("Base bug number must contain digits only.");
+    }
+
+    var backportBug = inputValue("backportBugNumber").trim();
+    if (backportBug && !/^\d+$/.test(backportBug)) {
+      throw new Error("Backport bug number must contain digits only.");
     }
 
     var year = inputValue("releaseYear").trim();
