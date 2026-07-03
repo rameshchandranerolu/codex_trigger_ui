@@ -648,8 +648,8 @@
     if (els.runnerSelect) {
       els.runnerSelect.addEventListener("change", function () {
         state.selectedRunnerId = els.runnerSelect.value;
-        applySelectedRunner(true); 
-        updatePreview();
+        applySelectedRunner(true);
+        updatePreview(); 
       });
     }
     if (els.modelPresetSelect) {
