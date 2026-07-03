@@ -1,0 +1,4 @@
+{
+  "Bronze Manual": "(DESCRIPTION=(SOURCE_ROUTE=YES)(ADDRESS=(PROTOCOL=TCP)(HOST=faeops-oci-cman.oraclecorp.com)(PORT=1999))(ADDRESS=(PROTOCOL=TCP)(HOST=phx00041-8xib5-scan.dbfepint.adpdb01phxpint.oraclevcn.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=uspjiamp_f_fb)))",
+  "Bronze Cookie Cutter": "(DESCRIPTION=(SOURCE_ROUTE=YES)(ADDRESS=(PROTOCOL=TCP)(HOST=faeops-oci-cman.oraclecorp.com)(PORT=1999))(ADDRESS=(PROTOCOL=TCP)(HOST=phx00004-ho8tq-scan.dbfepint.adpdb01phxpint.oraclevcn.com)(PORT=1521))(CONNECT_DATA=(SERVICE_NAME=uspzonhh_f_fb)))"
+}
