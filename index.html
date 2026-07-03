@@ -28,6 +28,10 @@
               <span>Outcome</span>
               <select id="outcomeSelect"></select>
             </label>
+            <label class="field" id="workTypeSelectField" hidden>
+              <span>Work type</span>
+              <select id="workTypeSelect"></select>
+            </label>
           </div>
 
           <div id="outcomeDetails" hidden>
@@ -54,12 +58,12 @@
             <div id="dynamicFields" class="dynamic-fields"></div>
             <div id="commandBuilder" class="command-builder"></div>
 
-            <label class="field">
+            <label class="field" hidden>
               <span>Extra context</span>
               <textarea id="contextInput" rows="4" placeholder="Optional context Codex should keep in mind for this outcome"></textarea>
             </label>
 
-            <label class="field">
+            <label class="field" hidden>
               <span>Issue title</span>
               <input id="titleInput" autocomplete="off" placeholder="Auto-filled from the selected outcome">
             </label>

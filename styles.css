@@ -305,6 +305,41 @@ button {
   margin-bottom: 2px;
 }
 
+.question-list {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.question-card {
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-soft);
+  padding: 13px;
+}
+
+.question-card h3 {
+  margin: 4px 0 10px;
+  font-size: 15px;
+  line-height: 1.25;
+  letter-spacing: 0;
+}
+
+.question-count {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.question-card .field {
+  margin-bottom: 0;
+}
+
+.question-card .field > span {
+  display: none;
+}
+
 .command-builder {
   margin-bottom: 14px;
 }

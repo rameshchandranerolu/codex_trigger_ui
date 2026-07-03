@@ -517,6 +517,7 @@
     fieldValues: {},
     wizardSequenceKey: "",
     sequenceEditedByUser: false,
+    selectedWorkType: "",
     selectedWorkflowId: "",
     selectedOutcomeId: "",
     selectedOperationId: "",
@@ -586,6 +587,8 @@
       "projectList",
       "selectedProjectLabel",
       "outcomeSelect",
+      "workTypeSelect",
+      "workTypeSelectField",
       "outcomeDetails",
       "projectSelect",
       "projectSelectField",
@@ -616,6 +619,18 @@
     if (els.outcomeSelect) {
       els.outcomeSelect.addEventListener("change", function () {
         applyOutcome(els.outcomeSelect.value, true);
+      });
+    }
+    if (els.workTypeSelect) {
+      els.workTypeSelect.addEventListener("change", function () {
+        state.selectedWorkType = els.workTypeSelect.value;
+        state.fieldValues.backportType = state.selectedWorkType;
+        ensureSelectedProjectForWorkflow(selectedOutcome());
+        renderWorkTypeSelect();
+        renderProjectSelect();
+        renderDynamicFields();
+        renderCommandBuilder();
+        updatePreview();
       });
     }
     if (els.projectSelect) {
@@ -1127,7 +1142,9 @@
       state.fieldValues = {};
       state.wizardSequenceKey = "";
       state.sequenceEditedByUser = false;
+      state.selectedWorkType = "";
       renderOutcomeSelect();
+      renderWorkTypeSelect();
       renderOutcomeDetails();
       renderProjectSelect();
       renderDynamicFields();
@@ -1140,6 +1157,8 @@
       state.fieldValues = {};
       state.wizardSequenceKey = "";
       state.sequenceEditedByUser = false;
+      state.selectedWorkType = defaultWorkTypeForOutcome(outcome);
+      state.fieldValues.backportType = state.selectedWorkType;
     }
     workflow = state.workflows.find(function (item) {
       return item.id === outcome.workflow;
@@ -1157,6 +1176,7 @@
       applyOutcomeSequence(outcome);
     }
     renderOutcomeSelect();
+    renderWorkTypeSelect();
     renderOutcomeDetails();
     renderProjectSelect();
     renderDynamicFields();
@@ -1173,6 +1193,51 @@
     if (els.previewPane) {
       els.previewPane.hidden = !hasOutcome;
     }
+  }
+
+  function workTypeOptionsForOutcome(outcome) {
+    if (!outcome) {
+      return [];
+    }
+    if (outcome.id === "backport" || outcome.id === "custom" || outcome.id === "bug-analysis") {
+      return ["", "ADE", "VB"];
+    }
+    if (outcome.id === "vb-work") {
+      return ["VB"];
+    }
+    return ["ADE"];
+  }
+
+  function defaultWorkTypeForOutcome(outcome) {
+    var options = workTypeOptionsForOutcome(outcome);
+    if (!options.length) {
+      return "";
+    }
+    if (options.length === 1) {
+      return options[0];
+    }
+    return "";
+  }
+
+  function renderWorkTypeSelect() {
+    var outcome = selectedOutcome();
+    var options = workTypeOptionsForOutcome(outcome);
+    if (!els.workTypeSelect || !els.workTypeSelectField) {
+      return;
+    }
+    els.workTypeSelectField.hidden = !outcome || !options.length;
+    els.workTypeSelect.disabled = options.length === 1;
+    els.workTypeSelect.innerHTML = options.map(function (option) {
+      var label = option || "Select work type...";
+      return '<option value="' + escapeHtml(option) + '">' + escapeHtml(label) + "</option>";
+    }).join("");
+    if (state.selectedWorkType && options.indexOf(state.selectedWorkType) !== -1) {
+      els.workTypeSelect.value = state.selectedWorkType;
+    } else {
+      state.selectedWorkType = options.length === 1 ? options[0] : "";
+      els.workTypeSelect.value = state.selectedWorkType;
+    }
+    state.fieldValues.backportType = state.selectedWorkType;
   }
 
   function applyOutcomeSequence(outcome) {
@@ -1255,7 +1320,7 @@
       return;
     }
     var projects = projectOptionsForWorkflow();
-    els.projectSelectField.hidden = !projects.length;
+    els.projectSelectField.hidden = !(selectedOutcome() && state.selectedWorkType === "VB" && projects.length);
     els.projectSelect.innerHTML = projects.map(function (project) {
       return '<option value="' + escapeHtml(project.alias) + '">' + escapeHtml(project.name || project.alias) + "</option>";
     }).join("");
@@ -1266,6 +1331,15 @@
 
   function ensureSelectedProjectForWorkflow(outcome) {
     var projects = projectOptionsForWorkflow();
+    var adeProject = state.projects.find(function (project) {
+      return project.alias === "ade";
+    }) || state.projects.find(function (project) {
+      return project.alias === "codex-automation";
+    });
+    if (state.selectedWorkType !== "VB") {
+      state.selectedProjectAlias = adeProject ? adeProject.alias : "";
+      return;
+    }
     if (!projects.length) {
       state.selectedProjectAlias = "";
       return;
@@ -1310,9 +1384,7 @@
       return;
     }
 
-    workflowFields(workflow, operation).forEach(function (fieldName) {
-      html += fieldHtml(fieldName);
-    });
+    html = renderQuestionCards(selectedOutcome(), workflowFields(workflow, operation));
 
     els.dynamicFields.innerHTML = html;
 
@@ -1331,10 +1403,6 @@
     Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, select, textarea"), function (element) {
       element.addEventListener("input", function () {
         rememberFieldValue(element);
-        if (outcomeUsesWizard(selectedOutcome())) {
-          renderDynamicFields();
-          return;
-        }
         updatePreview();
       });
       element.addEventListener("change", function () {
@@ -1550,6 +1618,114 @@
     ].join("");
   }
 
+  function renderWizardQuestions(outcome) {
+    return renderQuestionCards(outcome, outcomeWizardFields(outcome));
+  }
+
+  function renderQuestionCards(outcome, fields) {
+    var labels = wizardQuestionLabels(outcome);
+    var html = ['<section class="question-list" aria-label="Outcome questions">'];
+    (fields || []).forEach(function (fieldName, index) {
+      html.push(
+        '<article class="question-card">',
+        '<div class="question-count">Question ' + (index + 1) + "</div>",
+        '<h3>' + escapeHtml(labels[fieldName] || (fieldSpecs[fieldName] ? fieldSpecs[fieldName].label : fieldName)) + "</h3>",
+        fieldHtml(fieldName),
+        "</article>"
+      );
+    });
+    html.push("</section>");
+    return html.join("");
+  }
+
+  function wizardQuestionLabels(outcome) {
+    if (outcome && outcome.id === "backport") {
+      return {
+        baseBugNumber: "Provide the base bug number",
+        backportBugExists: "Do you already have the backport bug created?",
+        backportBugNumber: "Provide the existing backport bug number",
+        adeView: "If this is ADE work, provide the existing ADE view to verify",
+        releaseYear: "Choose the target release year",
+        releaseMonth: "Choose the target release month",
+        details: "Add any extra constraints or notes"
+      };
+    }
+    if (outcome && outcome.id === "seeddata") {
+      return {
+        seedDataType: "What type of SeedData change is this?",
+        seedTarget: "Which codeline should receive the SeedData change?",
+        seedReleaseYear: "Choose the release year",
+        seedReleaseMonth: "Choose the release month",
+        seedFilePath: "Confirm the seed file path",
+        seedLba: "Confirm the LBA",
+        seedBugExists: "Do you already have the SeedData bug created?",
+        existingBugNumber: "Provide the existing SeedData bug number",
+        bugDescription: "Provide the BugDB subject/description to create the bug",
+        copyFromStaging: "Should the data be copied from staging?",
+        stagingEnvironment: "Choose the staging environment",
+        stagingDbUrl: "Confirm the staging database URL",
+        stagingUsername: "Confirm the staging username",
+        stagingPassword: "Provide the staging password",
+        stagingKey: "Provide the staging lookup/profile/value-set key",
+        profileOptionCode: "Provide the profile option code",
+        profileOptionName: "Provide the profile option name",
+        profileOptionDescription: "Provide the profile option description",
+        profileOptionValue: "Provide the SITE profile option value",
+        profileSiteEnabled: "Confirm whether Site is enabled",
+        profileSiteUpdatable: "Confirm whether Site is updatable",
+        profileUserEnabled: "Confirm whether User is enabled",
+        profileUserUpdatable: "Confirm whether User is updatable",
+        profileOptionUserValue: "Provide the USER value when User is enabled",
+        profileValidationSql: "Provide validation SQL",
+        messageSql: "Provide the message SQL",
+        lookupType: "Provide the lookup type",
+        lookupMeaning: "Provide the lookup meaning",
+        lookupDescription: "Provide the lookup description",
+        lookupValues: "Provide the lookup values",
+        details: "Add any extra constraints or notes"
+      };
+    }
+    if (outcome && outcome.id === "ade-commands") {
+      return {
+        bugNumber: "Provide the bug number, if this command sequence is bug-specific",
+        adeView: "Provide the ADE view name",
+        adeBranch: "Provide the ADE branch, if a command needs it",
+        adeTxn: "Provide the transaction name, if a command needs it",
+        details: "Describe the ADE commands or constraints"
+      };
+    }
+    if (outcome && outcome.id === "vb-work") {
+      return {
+        vbBranchType: "Choose the VB branch type",
+        vbBranchYear: "Choose the branch YY",
+        vbBranchMonth: "Choose the branch MM",
+        details: "Describe the VB work"
+      };
+    }
+    if (outcome && outcome.id === "copy-person-data") {
+      return {
+        personIdentifier: "Provide the person ID or name",
+        stagingEnvironment: "Choose the staging environment",
+        stagingDbUrl: "Confirm the staging database URL",
+        stagingUsername: "Confirm the staging username",
+        stagingPassword: "Provide the staging password",
+        toDb: "Confirm the target DB",
+        details: "Add any extra constraints or notes"
+      };
+    }
+    if (outcome && outcome.id === "bug-analysis") {
+      return {
+        details: "Describe the bug or analysis request"
+      };
+    }
+    if (outcome && outcome.id === "custom") {
+      return {
+        details: "Describe the custom task"
+      };
+    }
+    return {};
+  }
+
   function renderCommandBuilder() {
     var workflow = selectedWorkflow();
     var outcome = selectedOutcome();
@@ -1562,14 +1738,7 @@
       return;
     }
     if (outcomeUsesWizard(outcome) && !wizardReadyForSequence(outcome)) {
-      els.commandBuilder.innerHTML = [
-        '<section class="command-panel" aria-label="Command sequence">',
-        '<div class="command-panel-head">',
-        "<h3>Command Sequence</h3>",
-        "</div>",
-        '<div class="empty-command-row">Answer the required outcome questions to generate the approved sequence.</div>',
-        "</section>"
-      ].join("");
+      els.commandBuilder.innerHTML = "";
       return;
     }
 
@@ -2098,10 +2267,13 @@
         fields.push("backportBugExists");
       }
       if (inputValue("backportBugExists") === "Yes") {
-        fields.push("backportBugNumber", "adeView");
+        fields.push("backportBugNumber");
+        if (state.selectedWorkType === "ADE") {
+          fields.push("adeView");
+        }
       }
       if (["Yes", "No"].indexOf(inputValue("backportBugExists")) !== -1) {
-        fields.push("backportType", "releaseYear", "releaseMonth", "details");
+        fields.push("releaseYear", "releaseMonth", "details");
       }
       return fields;
     }
@@ -2154,16 +2326,19 @@
       return true;
     }
     if (outcome.id === "backport") {
-      if (!inputValue("baseBugNumber") || ["Yes", "No"].indexOf(inputValue("backportBugExists")) === -1) {
+      if (!state.selectedWorkType || !inputValue("baseBugNumber") || ["Yes", "No"].indexOf(inputValue("backportBugExists")) === -1) {
         return false;
       }
       if (inputValue("backportBugExists") === "Yes" && !inputValue("backportBugNumber")) {
         return false;
       }
+      if (!inputValue("releaseYear") || !inputValue("releaseMonth")) {
+        return false;
+      }
       return true;
     }
     if (outcome.id === "seeddata") {
-      if (!inputValue("seedDataType") || !inputValue("seedTarget") || !inputValue("seedFilePath")) {
+      if (!state.selectedWorkType || !inputValue("seedDataType") || !inputValue("seedTarget") || !inputValue("seedFilePath")) {
         return false;
       }
       if (inputValue("seedTarget") === "Release" && (!inputValue("seedReleaseYear") || !inputValue("seedReleaseMonth"))) {
@@ -2264,7 +2439,7 @@
   function projectOptionsForWorkflow() {
     var workflow = selectedWorkflow();
     var outcome = selectedOutcome();
-    if (outcome && Array.isArray(state.outcomeConfig.vb_projects) && outcome.default_work_type === "VB") {
+    if (outcome && state.selectedWorkType === "VB" && Array.isArray(state.outcomeConfig.vb_projects)) {
       var vbAllowed = {};
       state.outcomeConfig.vb_projects.forEach(function (alias) {
         vbAllowed[alias] = true;
@@ -2335,11 +2510,11 @@
     if (!primary && workflow && !workflowHasOperations(workflow)) {
       primary = firstLine(inputValue("instructions"));
     }
+    if (!primary) {
+      primary = inputValue("baseBugNumber") || inputValue("bugNumber") || inputValue("existingBugNumber") || inputValue("backportBugNumber") || inputValue("adeView") || firstLine(inputValue("bugDescription")) || firstLine(inputValue("details")) || "new task";
+    }
     if (!primary && workflow && workflow.requiresProject) {
       primary = state.selectedProjectAlias;
-    }
-    if (!primary) {
-      primary = inputValue("bugNumber") || inputValue("adeView") || firstLine(inputValue("details")) || "new task";
     }
     primary = primary.length > 72 ? primary.slice(0, 69).trim() + "..." : primary;
 
@@ -2364,6 +2539,12 @@
     if (operation && operation.description) {
       lines.push(operation.description);
       lines.push("");
+    }
+    if (state.selectedWorkType) {
+      lines.push("Work type: " + state.selectedWorkType);
+    }
+    if (state.selectedWorkType === "VB" && state.selectedProjectAlias) {
+      lines.push("VB project: " + state.selectedProjectAlias);
     }
 
     fields.forEach(function (fieldName) {
@@ -2523,7 +2704,9 @@
     if (operation) {
       lines.push("Operation: " + operation.id);
     }
-    if (selectedWorkflow() && selectedWorkflow().requiresProject && state.selectedProjectAlias) {
+    if (state.selectedWorkType === "VB" && selectedWorkflow() && selectedWorkflow().requiresProject && state.selectedProjectAlias) {
+      lines.push("Project: " + state.selectedProjectAlias);
+    } else if (state.selectedWorkType !== "VB" && state.selectedProjectAlias) {
       lines.push("Project: " + state.selectedProjectAlias);
     }
 
@@ -2584,6 +2767,12 @@
     }
     if (!workflow) {
       throw new Error("Selected outcome is not mapped to a workflow.");
+    }
+    if (!state.selectedWorkType) {
+      throw new Error("Select ADE or VB work type.");
+    }
+    if (state.selectedWorkType === "VB" && selectedWorkflow() && selectedWorkflow().requiresProject && !state.selectedProjectAlias) {
+      throw new Error("Select a VB project.");
     }
     if (!selectedModelPreset()) {
       throw new Error("Select a model.");
