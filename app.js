@@ -1650,8 +1650,7 @@
         baseBugNumber: "Provide the base bug number",
         backportBugExists: "Do you already have the backport bug created?",
         backportBugNumber: "Provide the existing backport bug number",
-        adeView: "If this is ADE work, provide the existing ADE view to verify",
-        backportSourceTransaction: "Provide the source transaction to backport from",
+        adeView: "Provide the existing ADE view to verify",
         releaseYear: "Choose the target release year",
         releaseMonth: "Choose the target release month",
         details: "Add any extra constraints or notes"
@@ -1867,11 +1866,11 @@
     }
     return [
       outcome.id,
+      state.selectedWorkType,
       inputValue("baseBugNumber"),
       inputValue("backportBugExists"),
       inputValue("backportBugNumber"),
       inputValue("adeView"),
-      inputValue("backportType"),
       inputValue("releaseYear"),
       inputValue("releaseMonth"),
       inputValue("seedDataType"),
@@ -2275,9 +2274,9 @@
       }
       if (inputValue("backportBugExists") === "Yes") {
         fields.push("backportBugNumber");
-      }
-      if (state.selectedWorkType === "ADE" && ["Yes", "No"].indexOf(inputValue("backportBugExists")) !== -1) {
-        fields.push("adeView", "backportSourceTransaction");
+        if (state.selectedWorkType === "ADE") {
+          fields.push("adeView");
+        }
       }
       if (["Yes", "No"].indexOf(inputValue("backportBugExists")) !== -1) {
         fields.push("releaseYear", "releaseMonth", "details");
@@ -2339,7 +2338,7 @@
       if (inputValue("backportBugExists") === "Yes" && !inputValue("backportBugNumber")) {
         return false;
       }
-      if (state.selectedWorkType === "ADE" && (!inputValue("adeView") || !inputValue("backportSourceTransaction"))) {
+      if (state.selectedWorkType === "ADE" && inputValue("backportBugExists") === "Yes" && !inputValue("adeView")) {
         return false;
       }
       if (!inputValue("releaseYear") || !inputValue("releaseMonth")) {
@@ -2376,7 +2375,6 @@
     var backportDescription;
     var branch;
     var view;
-    var sourceTransaction;
     var seedTarget;
     var seedType;
     if (!outcomeUsesWizard(outcome) || !wizardReadyForSequence(outcome)) {
@@ -2390,14 +2388,21 @@
       backportDescription = "Backport base BugDB bug " + baseBug + " to release " + targetRelease;
       branch = "FUSIONAPPS_11.13." + inputValue("releaseYear") + "." + inputValue("releaseMonth") + ".0_LINUX.X64";
       view = inputValue("adeView");
-      sourceTransaction = inputValue("backportSourceTransaction");
       if (state.selectedWorkType === "ADE") {
+        if (inputValue("backportBugExists") === "No") {
+          return [
+            { instruction: "Run read-only preflight: read base bug " + baseBug + ", derive the source transaction from BugDB/OraReview metadata, confirm target release " + targetRelease + " and ADE branch " + branch + ", then continue only when those values are unambiguous." },
+            { command: "bugdb.create-bug", params: { description: backportDescription, base_rptno: baseBug } },
+            { instruction: "Use the created backport bug number from the previous command. Verify required BugDB backport fields, target-release tags, customer, GOPS, and Bug Type before any ADE begintrans step." },
+            { instruction: "Create or select the target ADE view and begin the backport transaction with the derived source transaction. If the source transaction or target view cannot be derived with confidence, stop for follow-up approval instead of inventing values." },
+            { instruction: "After the ADE transaction exists, run HCM bug validation through the parent runner. Remediate approved/fixable validation errors and rerun until PASS, or stop for follow-up approval." },
+            { instruction: "After validation passes, run checkin-save and create/update OraReview using the actual active ADE transaction." }
+          ];
+        }
         return [
-          { instruction: "Run read-only preflight: read base bug " + baseBug + ", confirm source transaction " + sourceTransaction + ", target release " + targetRelease + ", ADE view " + view + ", and backport bug path before executing state-changing steps." },
-          inputValue("backportBugExists") === "Yes"
-            ? { instruction: "Use existing backport bug " + existingBug + " and verify it is linked to base bug " + baseBug + " with required Backport/RFI fields before begintrans." }
-            : { command: "bugdb.create-bug", params: { description: backportDescription, base_rptno: baseBug } },
-          { command: "ade.begin-backport-transaction", params: { view: view, bug: backportBug, from_transaction: sourceTransaction, branch: branch, options: "-nocheckout" } },
+          { instruction: "Run read-only preflight: read base bug " + baseBug + ", derive the source transaction from BugDB/OraReview metadata, confirm target release " + targetRelease + ", ADE view " + view + ", and existing backport bug " + existingBug + " before executing state-changing steps." },
+          { instruction: "Use existing backport bug " + existingBug + " and verify it is linked to base bug " + baseBug + " with required Backport/RFI fields before begintrans." },
+          { instruction: "Begin or verify the ADE backport transaction in view " + view + " using the derived source transaction. If the view is missing or the source transaction is ambiguous, stop for follow-up approval." },
           { instruction: "Resolve or verify the backported changes in ADE view " + view + ". If merge conflicts or implementation choices appear, stop for follow-up approval before adding new state-changing steps." },
           { command: "hcm.bug-validation", params: { view: view, bug: backportBug, transaction_from_view: "true", stop_on_failure: "true" } },
           { command: "hcm.bvt-pmg-validate", params: { view: view, bug: backportBug } },
@@ -2406,11 +2411,11 @@
         ];
       }
       return [
-        { instruction: "Read base BugDB bug " + baseBug + " and confirm source transaction/MR, target release " + targetRelease + ", and selected backport type " + (inputValue("backportType") || "VB") + "." },
+        { instruction: "Read base BugDB bug " + baseBug + " and derive source transaction/MR metadata, target release " + targetRelease + ", and selected work type " + state.selectedWorkType + "." },
         inputValue("backportBugExists") === "Yes"
-          ? { instruction: "Use existing backport bug " + existingBug + ". Verify it is linked to base bug " + baseBug + ", has required backport fields/tags, and check whether the supplied ADE view " + (inputValue("adeView") || "(not supplied)") + " exists before continuing." }
-          : { instruction: "Create the child backport bug for base bug " + baseBug + ", then verify required BugDB fields, target-release tags, customer, GOPS, and Bug Type before any implementation step." },
-        { instruction: "Run the approved VB or ADE backport implementation path only after the preflight values are unambiguous." },
+          ? { instruction: "Use existing backport bug " + existingBug + ". Verify it is linked to base bug " + baseBug + " and has required backport fields/tags before continuing." }
+          : { command: "bugdb.create-bug", params: { description: backportDescription, base_rptno: baseBug } },
+        { instruction: "Run the approved " + state.selectedWorkType + " backport implementation path only after the preflight values are unambiguous." },
         { instruction: "Run HCM bug validation through the parent runner. If validation reports fixable BugDB/header/tag/BVT errors, remediate them with approved BugDB/catalog actions and rerun validation until PASS, or stop for follow-up approval when remediation is not already approved." },
         { instruction: "After validation passes, create/update review or MR, run required checks, and summarize completed steps, log paths, and any remaining approval needs." }
       ];
@@ -3010,6 +3015,9 @@
     }
     if (inputValue("backportBugExists") === "Yes" && !backportBug) {
       throw new Error("Enter Backport bug number.");
+    }
+    if (backportType === "ADE" && inputValue("backportBugExists") === "Yes" && !inputValue("adeView").trim()) {
+      throw new Error("Enter the existing ADE view to verify.");
     }
 
     var year = inputValue("releaseYear").trim();
