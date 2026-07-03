@@ -16,39 +16,31 @@
         <div class="status-pill" id="statusPill">Ready</div>
       </section>
 
-      <section class="workspace" aria-label="Trigger builder">
-        <aside class="project-pane" aria-label="Workflow selection">
-          <div class="pane-heading">
-            <h2>Workflows</h2>
-            <span id="projectCount">0</span>
-          </div>
-          <label class="field">
-            <span>Filter</span>
-            <input id="projectFilter" type="search" autocomplete="off" placeholder="Search workflows">
-          </label>
-          <div class="project-list" id="projectList"></div>
-        </aside>
-
+      <section class="workspace outcome-workspace" aria-label="Trigger builder">
         <section class="builder-pane" aria-label="Issue details">
           <div class="section-title">
             <h2>Trigger Details</h2>
-            <span id="selectedProjectLabel">No workflow selected</span>
+            <span id="selectedProjectLabel">Select an outcome</span>
           </div>
 
-          <div class="form-grid">
+          <div class="form-grid outcome-first">
             <label class="field">
               <span>Outcome</span>
               <select id="outcomeSelect"></select>
             </label>
+          </div>
+
+          <div id="outcomeDetails" hidden>
+            <div class="form-grid routing-grid">
             <label class="field" id="projectSelectField" hidden>
               <span>Project</span>
               <select id="projectSelect"></select>
             </label>
-            <label class="field">
+            <label class="field" id="runnerSelectField" hidden>
               <span>Runner</span>
               <select id="runnerSelect"></select>
             </label>
-            <label class="field">
+            <label class="field" id="modelPresetSelectField" hidden>
               <span>Model</span>
               <select id="modelPresetSelect">
                 <option value="cheap-default">Cheap default</option>
@@ -57,31 +49,32 @@
             </label>
             <input id="ownerInput" type="hidden">
             <input id="repoInput" type="hidden">
+            </div>
+
+            <div id="dynamicFields" class="dynamic-fields"></div>
+            <div id="commandBuilder" class="command-builder"></div>
+
+            <label class="field">
+              <span>Extra context</span>
+              <textarea id="contextInput" rows="4" placeholder="Optional context Codex should keep in mind for this outcome"></textarea>
+            </label>
+
+            <label class="field">
+              <span>Issue title</span>
+              <input id="titleInput" autocomplete="off" placeholder="Auto-filled from the selected outcome">
+            </label>
+
+            <div class="actions">
+              <button id="previewButton" class="secondary-button" type="button">Refresh Preview</button>
+              <a id="submitLink" class="primary-button" href="#" target="_blank" rel="noopener">Open GitHub Issue</a>
+              <button id="copyIssueUrlButton" class="secondary-button" type="button">Copy GitHub Issue URL</button>
+            </div>
+
+            <div class="result-row" id="resultRow" hidden></div>
           </div>
-
-          <div id="dynamicFields" class="dynamic-fields"></div>
-          <div id="commandBuilder" class="command-builder"></div>
-
-          <label class="field">
-            <span>Extra context</span>
-            <textarea id="contextInput" rows="4" placeholder="Optional context Codex should keep in mind for this workflow or task"></textarea>
-          </label>
-
-          <label class="field">
-            <span>Issue title</span>
-            <input id="titleInput" autocomplete="off" placeholder="Auto-filled from the selected workflow">
-          </label>
-
-          <div class="actions">
-            <button id="previewButton" class="secondary-button" type="button">Refresh Preview</button>
-            <a id="submitLink" class="primary-button" href="#" target="_blank" rel="noopener">Open GitHub Issue</a>
-            <button id="copyIssueUrlButton" class="secondary-button" type="button">Copy GitHub Issue URL</button>
-          </div>
-
-          <div class="result-row" id="resultRow" hidden></div>
         </section>
 
-        <aside class="preview-pane" aria-label="Issue preview">
+        <aside class="preview-pane" id="previewPane" aria-label="Issue preview" hidden>
           <div class="section-title">
             <h2>Preview</h2>
             <span id="labelPreview">codex:queued</span>

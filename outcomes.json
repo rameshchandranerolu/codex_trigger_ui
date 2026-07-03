@@ -18,7 +18,8 @@
       "default_sequence": [
         {"instruction": "Run read-only backport preflight and identify the exact approved sequence."},
         {"instruction": "If no existing backport bug is supplied, create the child backport bug and verify required BugDB fields."},
-        {"instruction": "After approval, run the VB or ADE backport implementation path, validation, review creation, and final status updates."}
+        {"instruction": "Run HCM bug validation through the parent runner; remediate approved/fixable validation errors and rerun until PASS, or stop for follow-up approval when remediation is not already approved."},
+        {"instruction": "After approval, run the VB or ADE backport implementation path, review creation, and final status updates."}
       ]
     },
     {
@@ -30,7 +31,7 @@
       "default_work_type": "ADE",
       "default_sequence": [
         {"instruction": "Run SeedData preflight, resolve or create the BugDB bug, and propose exact ADE/SQL/load/extract steps."},
-        {"instruction": "After approval, run load/extract, comparator, BugDB upload, checkin/save, and OraReview steps."}
+        {"instruction": "After approval, run load/extract, comparator, BugDB upload, checkin/save, OraReview, and any required validation/remediation rerun steps."}
       ]
     },
     {
