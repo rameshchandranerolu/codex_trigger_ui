@@ -456,6 +456,12 @@
       placeholder: "Optional transaction name",
       taskLabel: "Transaction name"
     },
+    backportSourceTransaction: {
+      id: "backportSourceTransactionInput",
+      label: "Source transaction",
+      placeholder: "rnerolu_bug-39335023",
+      taskLabel: "Source transaction"
+    },
     module: {
       id: "moduleInput",
       label: "Product/module boundary",
@@ -1645,6 +1651,7 @@
         backportBugExists: "Do you already have the backport bug created?",
         backportBugNumber: "Provide the existing backport bug number",
         adeView: "If this is ADE work, provide the existing ADE view to verify",
+        backportSourceTransaction: "Provide the source transaction to backport from",
         releaseYear: "Choose the target release year",
         releaseMonth: "Choose the target release month",
         details: "Add any extra constraints or notes"
@@ -2268,9 +2275,9 @@
       }
       if (inputValue("backportBugExists") === "Yes") {
         fields.push("backportBugNumber");
-        if (state.selectedWorkType === "ADE") {
-          fields.push("adeView");
-        }
+      }
+      if (state.selectedWorkType === "ADE" && ["Yes", "No"].indexOf(inputValue("backportBugExists")) !== -1) {
+        fields.push("adeView", "backportSourceTransaction");
       }
       if (["Yes", "No"].indexOf(inputValue("backportBugExists")) !== -1) {
         fields.push("releaseYear", "releaseMonth", "details");
@@ -2332,6 +2339,9 @@
       if (inputValue("backportBugExists") === "Yes" && !inputValue("backportBugNumber")) {
         return false;
       }
+      if (state.selectedWorkType === "ADE" && (!inputValue("adeView") || !inputValue("backportSourceTransaction"))) {
+        return false;
+      }
       if (!inputValue("releaseYear") || !inputValue("releaseMonth")) {
         return false;
       }
@@ -2362,6 +2372,11 @@
     var baseBug;
     var targetRelease;
     var existingBug;
+    var backportBug;
+    var backportDescription;
+    var branch;
+    var view;
+    var sourceTransaction;
     var seedTarget;
     var seedType;
     if (!outcomeUsesWizard(outcome) || !wizardReadyForSequence(outcome)) {
@@ -2371,6 +2386,25 @@
       baseBug = inputValue("baseBugNumber");
       targetRelease = inputValue("releaseYear") && inputValue("releaseMonth") ? inputValue("releaseYear") + "." + inputValue("releaseMonth") : "(target release from form)";
       existingBug = inputValue("backportBugNumber");
+      backportBug = inputValue("backportBugExists") === "Yes" ? existingBug : "${bug}";
+      backportDescription = "Backport base BugDB bug " + baseBug + " to release " + targetRelease;
+      branch = "FUSIONAPPS_11.13." + inputValue("releaseYear") + "." + inputValue("releaseMonth") + ".0_LINUX.X64";
+      view = inputValue("adeView");
+      sourceTransaction = inputValue("backportSourceTransaction");
+      if (state.selectedWorkType === "ADE") {
+        return [
+          { instruction: "Run read-only preflight: read base bug " + baseBug + ", confirm source transaction " + sourceTransaction + ", target release " + targetRelease + ", ADE view " + view + ", and backport bug path before executing state-changing steps." },
+          inputValue("backportBugExists") === "Yes"
+            ? { instruction: "Use existing backport bug " + existingBug + " and verify it is linked to base bug " + baseBug + " with required Backport/RFI fields before begintrans." }
+            : { command: "bugdb.create-bug", params: { description: backportDescription, base_rptno: baseBug } },
+          { command: "ade.begin-backport-transaction", params: { view: view, bug: backportBug, from_transaction: sourceTransaction, branch: branch, options: "-nocheckout" } },
+          { instruction: "Resolve or verify the backported changes in ADE view " + view + ". If merge conflicts or implementation choices appear, stop for follow-up approval before adding new state-changing steps." },
+          { command: "hcm.bug-validation", params: { view: view, bug: backportBug, transaction_from_view: "true", stop_on_failure: "true" } },
+          { command: "hcm.bvt-pmg-validate", params: { view: view, bug: backportBug } },
+          { command: "ade.checkin-save", params: { view: view } },
+          { command: "orareview.create", params: { view: view, bug: backportBug } }
+        ];
+      }
       return [
         { instruction: "Read base BugDB bug " + baseBug + " and confirm source transaction/MR, target release " + targetRelease + ", and selected backport type " + (inputValue("backportType") || "VB") + "." },
         inputValue("backportBugExists") === "Yes"
@@ -2426,6 +2460,14 @@
   function commandAllowedForWorkflow(command, workflowId) {
     if (workflowId === "custom") {
       return true;
+    }
+    if (workflowId === "alm-backport") {
+      if (Array.isArray(command.workflows) && command.workflows.indexOf("ade") !== -1) {
+        return true;
+      }
+      if (command.workflow === "ade") {
+        return true;
+      }
     }
     if (Array.isArray(command.workflows) && command.workflows.length) {
       return command.workflows.indexOf("any") !== -1 || command.workflows.indexOf(workflowId) !== -1;

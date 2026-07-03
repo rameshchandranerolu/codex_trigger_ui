@@ -804,7 +804,8 @@
           "name": "bug",
           "label": "Bug number",
           "required": true,
-          "pattern": "^[0-9]+$"
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
         },
         {
           "name": "transaction_from_view",
