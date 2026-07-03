@@ -89,13 +89,9 @@ button {
 
 .workspace {
   display: grid;
-  grid-template-columns: minmax(500px, 1fr) minmax(330px, 440px);
+  grid-template-columns: minmax(260px, 320px) minmax(420px, 1fr) minmax(330px, 440px);
   gap: 14px;
   align-items: start;
-}
-
-.outcome-workspace {
-  grid-template-columns: minmax(500px, 1fr) minmax(330px, 440px);
 }
 
 .project-pane,
@@ -105,14 +101,6 @@ button {
   border: 1px solid var(--line);
   border-radius: 8px;
   box-shadow: var(--shadow);
-}
-
-.outcome-first {
-  grid-template-columns: minmax(280px, 420px);
-}
-
-.routing-grid {
-  margin-top: 4px;
 }
 
 .project-pane,
@@ -305,41 +293,6 @@ button {
   margin-bottom: 2px;
 }
 
-.question-list {
-  display: grid;
-  gap: 12px;
-  margin-bottom: 14px;
-}
-
-.question-card {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--panel-soft);
-  padding: 13px;
-}
-
-.question-card h3 {
-  margin: 4px 0 10px;
-  font-size: 15px;
-  line-height: 1.25;
-  letter-spacing: 0;
-}
-
-.question-count {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-}
-
-.question-card .field {
-  margin-bottom: 0;
-}
-
-.question-card .field > span {
-  display: none;
-}
-
 .command-builder {
   margin-bottom: 14px;
 }
@@ -437,20 +390,6 @@ button {
 
 .command-param-wide {
   grid-column: 1 / -1;
-}
-
-.inline-check {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--muted);
-  font-size: 13px;
-  margin: 4px 0 12px;
-}
-
-.inline-check input {
-  width: 16px;
-  height: 16px;
 }
 
 .icon-button {

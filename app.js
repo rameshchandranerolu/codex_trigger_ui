@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260703-outcome-driven-sequence";
+  var ASSET_VERSION = "20260702-simplified-workflow-form";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -179,18 +179,11 @@
       placeholder: "Optional",
       taskLabel: "Existing backport bug number"
     },
-    backportBugExists: {
-      id: "backportBugExistsInput",
-      label: "Do you already have a backport bug?",
-      type: "select",
-      options: ["", "No", "Yes"],
-      taskLabel: "Existing backport bug"
-    },
     releaseYear: {
       id: "releaseYearInput",
       label: "Release year",
       type: "select",
-      options: ["26", "27", "28", "29", "30", "31", "32"],
+      options: ["26", "27", "28", "29", "30"],
       taskLabel: "Release year"
     },
     releaseMonth: {
@@ -204,21 +197,21 @@
       id: "seedDataTypeInput",
       label: "Seed Data Type",
       type: "select",
-      options: ["", "Profile Option", "Message", "Lookup", "Value Set"],
+      options: ["Profile Option", "Message", "Lookup", "Value Set"],
       taskLabel: "Seed Data Type"
     },
     seedTarget: {
       id: "seedTargetInput",
       label: "Target codeline",
       type: "select",
-      options: ["", "Bronze", "Silver", "Release"],
+      options: ["Bronze", "Silver", "Release"],
       taskLabel: "Target codeline"
     },
     seedReleaseYear: {
       id: "seedReleaseYearInput",
       label: "Release year",
       type: "select",
-      options: ["26", "27", "28", "29", "30", "31", "32"],
+      options: ["26", "27", "28", "29", "30"],
       taskLabel: "Release year",
       conditional: "seedRelease"
     },
@@ -248,13 +241,6 @@
       label: "Existing bug number",
       placeholder: "39483803",
       taskLabel: "Existing bug number"
-    },
-    seedBugExists: {
-      id: "seedBugExistsInput",
-      label: "Do you already have a SeedData bug?",
-      type: "select",
-      options: ["", "No", "Yes"],
-      taskLabel: "Existing SeedData bug"
     },
     bugDescription: {
       id: "bugDescriptionInput",
@@ -456,12 +442,6 @@
       placeholder: "Optional transaction name",
       taskLabel: "Transaction name"
     },
-    backportSourceTransaction: {
-      id: "backportSourceTransactionInput",
-      label: "Source transaction",
-      placeholder: "rnerolu_bug-39335023",
-      taskLabel: "Source transaction"
-    },
     module: {
       id: "moduleInput",
       label: "Product/module boundary",
@@ -483,49 +463,19 @@
       rows: 12,
       placeholder: "Describe the VB bug request in plain English. Include bug number, base branch, important files, whether it is a regression, and what Codex should analyze or prepare.",
       taskLabel: "Instructions"
-    },
-    vbBranchType: {
-      id: "vbBranchTypeInput",
-      label: "VB branch type",
-      type: "select",
-      options: ["Integration", "maintenance", "main"],
-      taskLabel: "VB branch type"
-    },
-    vbBranchYear: {
-      id: "vbBranchYearInput",
-      label: "VB branch YY",
-      type: "select",
-      options: ["26", "27", "28", "29", "30", "31", "32"],
-      taskLabel: "VB branch YY",
-      conditional: "vbBranchRelease"
-    },
-    vbBranchMonth: {
-      id: "vbBranchMonthInput",
-      label: "VB branch MM",
-      type: "select",
-      options: ["01", "04", "07", "10"],
-      taskLabel: "VB branch MM",
-      conditional: "vbBranchRelease"
     }
   };
 
   var state = {
     config: fallbackConfig,
     workflows: [],
-    outcomes: [],
-    outcomeConfig: {},
     projects: [],
     commands: [],
     runners: [],
     modelPresets: [],
     selectedCommands: [],
     commandSerial: 0,
-    fieldValues: {},
-    wizardSequenceKey: "",
-    sequenceEditedByUser: false,
-    selectedWorkType: "",
     selectedWorkflowId: "",
-    selectedOutcomeId: "",
     selectedOperationId: "",
     selectedProjectAlias: "",
     selectedRunnerId: "",
@@ -592,12 +542,6 @@
       "projectFilter",
       "projectList",
       "selectedProjectLabel",
-      "outcomeSelect",
-      "workTypeSelect",
-      "workTypeSelectField",
-      "outcomeDetails",
-      "projectSelect",
-      "projectSelectField",
       "runnerSelect",
       "modelPresetSelect",
       "ownerInput",
@@ -610,7 +554,6 @@
       "submitLink",
       "copyIssueUrlButton",
       "resultRow",
-      "previewPane",
       "issuePreview",
       "labelPreview"
     ].forEach(function (id) {
@@ -619,37 +562,12 @@
   }
 
   function bindEvents() {
-    if (els.projectFilter) {
-      els.projectFilter.addEventListener("input", renderWorkflows);
-    }
-    if (els.outcomeSelect) {
-      els.outcomeSelect.addEventListener("change", function () {
-        applyOutcome(els.outcomeSelect.value, true);
-      });
-    }
-    if (els.workTypeSelect) {
-      els.workTypeSelect.addEventListener("change", function () {
-        state.selectedWorkType = els.workTypeSelect.value;
-        state.fieldValues.backportType = state.selectedWorkType;
-        ensureSelectedProjectForWorkflow(selectedOutcome());
-        renderWorkTypeSelect();
-        renderProjectSelect();
-        renderDynamicFields();
-        renderCommandBuilder();
-        updatePreview();
-      });
-    }
-    if (els.projectSelect) {
-      els.projectSelect.addEventListener("change", function () {
-        state.selectedProjectAlias = els.projectSelect.value;
-        updatePreview();
-      });
-    }
+    els.projectFilter.addEventListener("input", renderWorkflows);
     if (els.runnerSelect) {
       els.runnerSelect.addEventListener("change", function () {
         state.selectedRunnerId = els.runnerSelect.value;
-        applySelectedRunner(true); 
-        updatePreview(); 
+        applySelectedRunner(true);
+        updatePreview();
       });
     }
     if (els.modelPresetSelect) {
@@ -699,14 +617,6 @@
       }).catch(function () {
         return { commands: [] };
       }),
-      fetch(assetUrl("./outcomes.json"), { cache: "no-store" }).then(function (response) {
-        if (!response.ok) {
-          return { outcomes: [] };
-        }
-        return response.json();
-      }).catch(function () {
-        return { outcomes: [] };
-      }),
       fetch(assetUrl("./seeddata_staging_environments.json"), { cache: "no-store" }).then(function (response) {
         if (!response.ok) {
           return {};
@@ -719,14 +629,11 @@
       .then(function (response) {
         var config = response[0];
         var commandConfig = response[1] || {};
-        var outcomeConfig = response[2] || {};
-        var stagingConfig = response[3] || {};
+        var stagingConfig = response[2] || {};
         state.config = config;
         state.workflows = Array.isArray(config.workflows) ? config.workflows : [];
         state.projects = Array.isArray(config.projects) ? config.projects : [];
         state.commands = Array.isArray(commandConfig.commands) ? commandConfig.commands : [];
-        state.outcomeConfig = outcomeConfig;
-        state.outcomes = Array.isArray(outcomeConfig.outcomes) ? outcomeConfig.outcomes : [];
         state.stagingEnvironments = normalizeStagingEnvironments(stagingConfig);
         updateStagingEnvironmentOptions();
         state.runners = githubRunners(config);
@@ -749,10 +656,7 @@
         if (!els.repoInput.value) {
           els.repoInput.value = config.github && config.github.repo ? config.github.repo : "";
         }
-        renderOutcomeSelect();
-        renderOutcomeDetails();
-        renderDynamicFields();
-        renderCommandBuilder();
+        selectWorkflow(state.workflows[0].id);
         renderWorkflows();
         updateRepoLabel();
         updatePreview();
@@ -761,8 +665,6 @@
       .catch(function () {
         state.config = fallbackConfig;
         state.workflows = fallbackConfig.workflows;
-        state.outcomes = [];
-        state.outcomeConfig = {};
         state.projects = fallbackConfig.projects;
         state.commands = fallbackConfig.commands;
         state.stagingEnvironments = defaultStagingEnvironments();
@@ -779,10 +681,7 @@
         renderModelPresetSelect();
         applySelectedRunner(false);
         state.selectedCommands = [];
-        renderOutcomeSelect();
-        renderOutcomeDetails();
-        renderDynamicFields();
-        renderCommandBuilder();
+        selectWorkflow(state.workflows[0].id);
         renderWorkflows();
         updateRepoLabel();
         updatePreview();
@@ -1110,164 +1009,7 @@
     els.statusPill.className = "status-pill" + (className ? " " + className : "");
   }
 
-  function renderOutcomeSelect() {
-    if (!els.outcomeSelect) {
-      return;
-    }
-    var outcomes = state.outcomes || [];
-    els.outcomeSelect.innerHTML = ['<option value="">Select outcome...</option>'].concat(outcomes.map(function (outcome) {
-      return '<option value="' + escapeHtml(outcome.id) + '">' + escapeHtml(outcome.label || outcome.id) + "</option>";
-    })).join("");
-    if (state.selectedOutcomeId) {
-      els.outcomeSelect.value = state.selectedOutcomeId;
-    } else {
-      els.outcomeSelect.value = "";
-    }
-  }
-
-  function outcomeById(outcomeId) {
-    return (state.outcomes || []).find(function (outcome) {
-      return outcome.id === outcomeId;
-    }) || null;
-  }
-
-  function selectedOutcome() {
-    return outcomeById(state.selectedOutcomeId);
-  }
-
-  function applyOutcome(outcomeId, resetSequence) {
-    var outcome = outcomeById(outcomeId);
-    var workflow;
-    var operation;
-    if (!outcome) {
-      state.selectedOutcomeId = "";
-      state.selectedWorkflowId = "";
-      state.selectedOperationId = "";
-      state.selectedProjectAlias = "";
-      state.selectedCommands = [];
-      state.fieldValues = {};
-      state.wizardSequenceKey = "";
-      state.sequenceEditedByUser = false;
-      state.selectedWorkType = "";
-      renderOutcomeSelect();
-      renderWorkTypeSelect();
-      renderOutcomeDetails();
-      renderProjectSelect();
-      renderDynamicFields();
-      renderCommandBuilder();
-      updatePreview();
-      return;
-    }
-    state.selectedOutcomeId = outcome.id;
-    if (resetSequence) {
-      state.fieldValues = {};
-      state.wizardSequenceKey = "";
-      state.sequenceEditedByUser = false;
-      state.selectedWorkType = defaultWorkTypeForOutcome(outcome);
-      state.fieldValues.backportType = state.selectedWorkType;
-    }
-    workflow = state.workflows.find(function (item) {
-      return item.id === outcome.workflow;
-    });
-    if (workflow) {
-      state.selectedWorkflowId = workflow.id;
-      operation = workflowOperations(workflow).find(function (item) {
-        return item.id === outcome.operation;
-      }) || firstOperation(workflow);
-      state.selectedOperationId = operation ? operation.id : "";
-    }
-    ensureSelectedRunnerForWorkflow();
-    ensureSelectedProjectForWorkflow(outcome);
-    if (resetSequence) {
-      applyOutcomeSequence(outcome);
-    }
-    renderOutcomeSelect();
-    renderWorkTypeSelect();
-    renderOutcomeDetails();
-    renderProjectSelect();
-    renderDynamicFields();
-    renderCommandBuilder();
-    renderWorkflows();
-    updatePreview();
-  }
-
-  function renderOutcomeDetails() {
-    var hasOutcome = !!selectedOutcome();
-    if (els.outcomeDetails) {
-      els.outcomeDetails.hidden = !hasOutcome;
-    }
-    if (els.previewPane) {
-      els.previewPane.hidden = !hasOutcome;
-    }
-  }
-
-  function workTypeOptionsForOutcome(outcome) {
-    if (!outcome) {
-      return [];
-    }
-    if (outcome.id === "backport" || outcome.id === "custom" || outcome.id === "bug-analysis") {
-      return ["", "ADE", "VB"];
-    }
-    if (outcome.id === "vb-work") {
-      return ["VB"];
-    }
-    return ["ADE"];
-  }
-
-  function defaultWorkTypeForOutcome(outcome) {
-    var options = workTypeOptionsForOutcome(outcome);
-    if (!options.length) {
-      return "";
-    }
-    if (options.length === 1) {
-      return options[0];
-    }
-    return "";
-  }
-
-  function renderWorkTypeSelect() {
-    var outcome = selectedOutcome();
-    var options = workTypeOptionsForOutcome(outcome);
-    if (!els.workTypeSelect || !els.workTypeSelectField) {
-      return;
-    }
-    els.workTypeSelectField.hidden = !outcome || !options.length;
-    els.workTypeSelect.disabled = options.length === 1;
-    els.workTypeSelect.innerHTML = options.map(function (option) {
-      var label = option || "Select work type...";
-      return '<option value="' + escapeHtml(option) + '">' + escapeHtml(label) + "</option>";
-    }).join("");
-    if (state.selectedWorkType && options.indexOf(state.selectedWorkType) !== -1) {
-      els.workTypeSelect.value = state.selectedWorkType;
-    } else {
-      state.selectedWorkType = options.length === 1 ? options[0] : "";
-      els.workTypeSelect.value = state.selectedWorkType;
-    }
-    state.fieldValues.backportType = state.selectedWorkType;
-  }
-
-  function applyOutcomeSequence(outcome) {
-    state.selectedCommands = [];
-    if (outcomeUsesWizard(outcome) && !wizardReadyForSequence(outcome)) {
-      return;
-    }
-    var dynamicSequence = wizardSequence(outcome);
-    if (dynamicSequence.length) {
-      dynamicSequence.forEach(function (step) {
-        addSequenceStep(step, false);
-      });
-      return;
-    }
-    (outcome.default_sequence || []).forEach(function (step) {
-      addSequenceStep(step, false);
-    });
-  }
-
   function renderWorkflows() {
-    if (!els.projectFilter || !els.projectList || !els.projectCount) {
-      updateSelectedWorkflowLabel();
-      return;
-    }
     var query = els.projectFilter.value.trim().toLowerCase();
     var workflows = state.workflows.filter(function (workflow) {
       var haystack = [
@@ -1316,44 +1058,14 @@
     var operation = firstOperation(selectedWorkflow());
     state.selectedOperationId = operation ? operation.id : "";
     ensureSelectedProjectForWorkflow();
-    renderProjectSelect();
     renderDynamicFields();
     renderCommandBuilder();
   }
 
-  function renderProjectSelect() {
-    if (!els.projectSelect || !els.projectSelectField) {
-      return;
-    }
+  function ensureSelectedProjectForWorkflow() {
     var projects = projectOptionsForWorkflow();
-    els.projectSelectField.hidden = !(selectedOutcome() && state.selectedWorkType === "VB" && projects.length);
-    els.projectSelect.innerHTML = projects.map(function (project) {
-      return '<option value="' + escapeHtml(project.alias) + '">' + escapeHtml(project.name || project.alias) + "</option>";
-    }).join("");
-    if (state.selectedProjectAlias) {
-      els.projectSelect.value = state.selectedProjectAlias;
-    }
-  }
-
-  function ensureSelectedProjectForWorkflow(outcome) {
-    var projects = projectOptionsForWorkflow();
-    var adeProject = state.projects.find(function (project) {
-      return project.alias === "ade";
-    }) || state.projects.find(function (project) {
-      return project.alias === "codex-automation";
-    });
-    if (state.selectedWorkType !== "VB") {
-      state.selectedProjectAlias = adeProject ? adeProject.alias : "";
-      return;
-    }
     if (!projects.length) {
       state.selectedProjectAlias = "";
-      return;
-    }
-    if (outcome && outcome.default_project && projects.some(function (project) {
-      return project.alias === outcome.default_project;
-    })) {
-      state.selectedProjectAlias = outcome.default_project;
       return;
     }
     var hasSelected = projects.some(function (project) {
@@ -1365,15 +1077,10 @@
   }
 
   function updateSelectedWorkflowLabel() {
-    var outcome = selectedOutcome();
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
-    if (outcome) {
-      els.selectedProjectLabel.textContent = outcome.label || outcome.id;
-      return;
-    }
     if (!workflow) {
-      els.selectedProjectLabel.textContent = "Select an outcome";
+      els.selectedProjectLabel.textContent = "No workflow selected";
       return;
     }
     els.selectedProjectLabel.textContent = operation ? workflow.id + " / " + operation.id : workflow.id;
@@ -1383,14 +1090,18 @@
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
     var html = "";
-    syncRenderedFieldValues();
 
     if (!workflow) {
       els.dynamicFields.innerHTML = "";
       return;
     }
 
-    html = renderQuestionCards(selectedOutcome(), workflowFields(workflow, operation));
+    if (workflowHasOperations(workflow)) {
+      html += operationSelectHtml(workflow);
+    }
+    workflowFields(workflow, operation).forEach(function (fieldName) {
+      html += fieldHtml(fieldName);
+    });
 
     els.dynamicFields.innerHTML = html;
 
@@ -1407,16 +1118,8 @@
     }
 
     Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("input, select, textarea"), function (element) {
-      element.addEventListener("input", function () {
-        rememberFieldValue(element);
-        updatePreview();
-      });
+      element.addEventListener("input", updatePreview);
       element.addEventListener("change", function () {
-        rememberFieldValue(element);
-        if (outcomeUsesWizard(selectedOutcome())) {
-          renderDynamicFields();
-          return;
-        }
         refreshSeedDataFields();
         updatePreview();
       });
@@ -1425,20 +1128,6 @@
     refreshSeedDataFields();
     updateSelectedWorkflowLabel();
     renderCommandBuilder();
-  }
-
-  function syncRenderedFieldValues() {
-    Array.prototype.forEach.call(document.querySelectorAll("[data-field-name] input, [data-field-name] select, [data-field-name] textarea"), function (element) {
-      rememberFieldValue(element);
-    });
-  }
-
-  function rememberFieldValue(element) {
-    var field = element.closest("[data-field-name]");
-    var fieldName = field ? field.getAttribute("data-field-name") : "";
-    if (fieldName) {
-      state.fieldValues[fieldName] = element.value;
-    }
   }
 
   function seedFileDefaultForType(type) {
@@ -1504,7 +1193,6 @@
   function refreshSeedDataFields() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
-    refreshVbBranchFields();
     if (workflow && workflow.id === "custom" && operation && operation.id === "copy-person-data") {
       ensureStagingDefaults();
       return;
@@ -1553,16 +1241,6 @@
     });
   }
 
-  function refreshVbBranchFields() {
-    var outcome = selectedOutcome();
-    var branchType = inputValue("vbBranchType");
-    Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("[data-conditional='vbBranchRelease']"), function (field) {
-      var show = !!(outcome && outcome.requires_vb_branch && branchType !== "main");
-      field.hidden = !show;
-      field.style.display = show ? "" : "none";
-    });
-  }
-
   function operationSelectHtml(workflow) {
     var operations = workflowOperations(workflow);
     if (!operations.length) {
@@ -1587,7 +1265,6 @@
       label: fieldName,
       placeholder: ""
     };
-    var savedValue = state.fieldValues[fieldName] !== undefined ? state.fieldValues[fieldName] : spec.defaultValue;
     var conditional = spec.conditional ? ' data-conditional="' + escapeHtml(spec.conditional) + '"' : "";
     var fieldAttrs = ' data-field-name="' + escapeHtml(fieldName) + '"' + conditional;
     if (spec.type === "lookupRows") {
@@ -1599,7 +1276,7 @@
         "<span>" + escapeHtml(spec.label) + "</span>",
         '<select id="' + spec.id + '">',
         (spec.options || []).map(function (option) {
-          var selected = savedValue !== undefined && String(option) === String(savedValue) ? " selected" : "";
+          var selected = spec.defaultValue !== undefined && String(option) === String(spec.defaultValue) ? " selected" : "";
           return '<option value="' + escapeHtml(option) + '"' + selected + ">" + escapeHtml(option) + "</option>";
         }).join(""),
         "</select>",
@@ -1611,7 +1288,7 @@
       return [
         '<label class="field"' + fieldAttrs + '>',
         "<span>" + escapeHtml(spec.label) + "</span>",
-        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '"' + readOnly + ">" + escapeHtml(savedValue || "") + "</textarea>",
+        '<textarea id="' + spec.id + '" rows="' + (spec.rows || 6) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '"' + readOnly + ">" + escapeHtml(spec.defaultValue || "") + "</textarea>",
         "</label>"
       ].join("");
     }
@@ -1619,132 +1296,18 @@
     return [
       '<label class="field"' + fieldAttrs + '>',
       "<span>" + escapeHtml(spec.label) + "</span>",
-      '<input id="' + spec.id + '"' + inputType + ' autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '" value="' + escapeHtml(savedValue || "") + '">',
+      '<input id="' + spec.id + '"' + inputType + ' autocomplete="off" spellcheck="false" placeholder="' + escapeHtml(spec.placeholder || "") + '" value="' + escapeHtml(spec.defaultValue || "") + '">',
       "</label>"
     ].join("");
   }
 
-  function renderWizardQuestions(outcome) {
-    return renderQuestionCards(outcome, outcomeWizardFields(outcome));
-  }
-
-  function renderQuestionCards(outcome, fields) {
-    var labels = wizardQuestionLabels(outcome);
-    var html = ['<section class="question-list" aria-label="Outcome questions">'];
-    (fields || []).forEach(function (fieldName, index) {
-      html.push(
-        '<article class="question-card">',
-        '<div class="question-count">Question ' + (index + 1) + "</div>",
-        '<h3>' + escapeHtml(labels[fieldName] || (fieldSpecs[fieldName] ? fieldSpecs[fieldName].label : fieldName)) + "</h3>",
-        fieldHtml(fieldName),
-        "</article>"
-      );
-    });
-    html.push("</section>");
-    return html.join("");
-  }
-
-  function wizardQuestionLabels(outcome) {
-    if (outcome && outcome.id === "backport") {
-      return {
-        baseBugNumber: "Provide the base bug number",
-        backportBugExists: "Do you already have the backport bug created?",
-        backportBugNumber: "Provide the existing backport bug number",
-        adeView: "Provide the existing ADE view to verify",
-        releaseYear: "Choose the target release year",
-        releaseMonth: "Choose the target release month",
-        details: "Add any extra constraints or notes"
-      };
-    }
-    if (outcome && outcome.id === "seeddata") {
-      return {
-        seedDataType: "What type of SeedData change is this?",
-        seedTarget: "Which codeline should receive the SeedData change?",
-        seedReleaseYear: "Choose the release year",
-        seedReleaseMonth: "Choose the release month",
-        seedFilePath: "Confirm the seed file path",
-        seedLba: "Confirm the LBA",
-        seedBugExists: "Do you already have the SeedData bug created?",
-        existingBugNumber: "Provide the existing SeedData bug number",
-        bugDescription: "Provide the BugDB subject/description to create the bug",
-        copyFromStaging: "Should the data be copied from staging?",
-        stagingEnvironment: "Choose the staging environment",
-        stagingDbUrl: "Confirm the staging database URL",
-        stagingUsername: "Confirm the staging username",
-        stagingPassword: "Provide the staging password",
-        stagingKey: "Provide the staging lookup/profile/value-set key",
-        profileOptionCode: "Provide the profile option code",
-        profileOptionName: "Provide the profile option name",
-        profileOptionDescription: "Provide the profile option description",
-        profileOptionValue: "Provide the SITE profile option value",
-        profileSiteEnabled: "Confirm whether Site is enabled",
-        profileSiteUpdatable: "Confirm whether Site is updatable",
-        profileUserEnabled: "Confirm whether User is enabled",
-        profileUserUpdatable: "Confirm whether User is updatable",
-        profileOptionUserValue: "Provide the USER value when User is enabled",
-        profileValidationSql: "Provide validation SQL",
-        messageSql: "Provide the message SQL",
-        lookupType: "Provide the lookup type",
-        lookupMeaning: "Provide the lookup meaning",
-        lookupDescription: "Provide the lookup description",
-        lookupValues: "Provide the lookup values",
-        details: "Add any extra constraints or notes"
-      };
-    }
-    if (outcome && outcome.id === "ade-commands") {
-      return {
-        bugNumber: "Provide the bug number, if this command sequence is bug-specific",
-        adeView: "Provide the ADE view name",
-        adeBranch: "Provide the ADE branch, if a command needs it",
-        adeTxn: "Provide the transaction name, if a command needs it",
-        details: "Describe the ADE commands or constraints"
-      };
-    }
-    if (outcome && outcome.id === "vb-work") {
-      return {
-        vbBranchType: "Choose the VB branch type",
-        vbBranchYear: "Choose the branch YY",
-        vbBranchMonth: "Choose the branch MM",
-        details: "Describe the VB work"
-      };
-    }
-    if (outcome && outcome.id === "copy-person-data") {
-      return {
-        personIdentifier: "Provide the person ID or name",
-        stagingEnvironment: "Choose the staging environment",
-        stagingDbUrl: "Confirm the staging database URL",
-        stagingUsername: "Confirm the staging username",
-        stagingPassword: "Provide the staging password",
-        toDb: "Confirm the target DB",
-        details: "Add any extra constraints or notes"
-      };
-    }
-    if (outcome && outcome.id === "bug-analysis") {
-      return {
-        details: "Describe the bug or analysis request"
-      };
-    }
-    if (outcome && outcome.id === "custom") {
-      return {
-        details: "Describe the custom task"
-      };
-    }
-    return {};
-  }
-
   function renderCommandBuilder() {
     var workflow = selectedWorkflow();
-    var outcome = selectedOutcome();
-    ensureWizardSequence();
     var commands = commandsForWorkflow(workflow ? workflow.id : "");
     if (!els.commandBuilder || !commands.length || !commandBuilderEnabled(workflow)) {
       if (els.commandBuilder) {
         els.commandBuilder.innerHTML = "";
       }
-      return;
-    }
-    if (outcomeUsesWizard(outcome) && !wizardReadyForSequence(outcome)) {
-      els.commandBuilder.innerHTML = "";
       return;
     }
 
@@ -1761,7 +1324,6 @@
       }).join(""),
       "</select>",
       '<button id="addCommandButton" class="secondary-button" type="button">Add</button>',
-      '<button id="addInstructionButton" class="secondary-button" type="button">Add Custom Instruction</button>',
       "</div>",
       "</div>"
     ];
@@ -1786,7 +1348,7 @@
 
     state.selectedCommands.forEach(function (entry, index) {
       var spec = commandSpec(entry.id);
-      if (!spec && entry.instruction === undefined) {
+      if (!spec) {
         return;
       }
       html.push(commandCardHtml(entry, spec, index));
@@ -1803,12 +1365,6 @@
     if (addButton) {
       addButton.addEventListener("click", function () {
         addSelectedCommand(commandSelect ? commandSelect.value : selectedId);
-      });
-    }
-    var instructionButton = document.getElementById("addInstructionButton");
-    if (instructionButton) {
-      instructionButton.addEventListener("click", function () {
-        addSequenceStep({ instruction: "" }, true);
       });
     }
     Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-command-recipe]"), function (button) {
@@ -1848,71 +1404,9 @@
         );
       });
     });
-    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-command-instruction]"), function (element) {
-      element.addEventListener("input", function () {
-        updateInstructionStep(element.getAttribute("data-command-uid"), element.value);
-      });
-    });
-    Array.prototype.forEach.call(els.commandBuilder.querySelectorAll("[data-command-allow-failure]"), function (element) {
-      element.addEventListener("change", function () {
-        updateAllowFailure(element.getAttribute("data-command-uid"), element.checked);
-      });
-    });
-  }
-
-  function wizardSequenceKey(outcome) {
-    if (!outcomeUsesWizard(outcome)) {
-      return "";
-    }
-    return [
-      outcome.id,
-      state.selectedWorkType,
-      inputValue("baseBugNumber"),
-      inputValue("backportBugExists"),
-      inputValue("backportBugNumber"),
-      inputValue("adeView"),
-      inputValue("releaseYear"),
-      inputValue("releaseMonth"),
-      inputValue("seedDataType"),
-      inputValue("seedTarget"),
-      inputValue("seedReleaseYear"),
-      inputValue("seedReleaseMonth"),
-      inputValue("seedFilePath"),
-      inputValue("seedBugExists"),
-      inputValue("existingBugNumber"),
-      inputValue("bugDescription"),
-      inputValue("copyFromStaging")
-    ].join("|");
-  }
-
-  function ensureWizardSequence() {
-    var outcome = selectedOutcome();
-    var key;
-    if (!outcomeUsesWizard(outcome)) {
-      return;
-    }
-    if (!wizardReadyForSequence(outcome)) {
-      if (!state.sequenceEditedByUser) {
-        state.selectedCommands = [];
-        state.wizardSequenceKey = "";
-      }
-      return;
-    }
-    key = wizardSequenceKey(outcome);
-    if (state.wizardSequenceKey === key) {
-      return;
-    }
-    if (state.sequenceEditedByUser && state.selectedCommands.length) {
-      return;
-    }
-    state.wizardSequenceKey = key;
-    applyOutcomeSequence(outcome);
   }
 
   function commandCardHtml(entry, spec, index) {
-    if (entry.instruction !== undefined) {
-      return instructionCardHtml(entry, index);
-    }
     var params = Array.isArray(spec.parameters) ? spec.parameters : [];
     var html = [
       '<article class="command-card">',
@@ -1925,7 +1419,6 @@
       '<button class="icon-button" type="button" aria-label="Remove command" title="Remove command" data-remove-command="' + escapeHtml(entry.uid) + '">x</button>',
       "</div>",
       "</div>",
-      '<label class="inline-check"><input type="checkbox" data-command-allow-failure="' + escapeHtml(entry.uid) + '"' + (entry.allowFailure ? " checked" : "") + "> Ignore error</label>",
       '<div class="command-param-grid">'
     ];
 
@@ -1937,27 +1430,6 @@
 
     html.push("</div></article>");
     return html.join("");
-  }
-
-  function instructionCardHtml(entry, index) {
-    return [
-      '<article class="command-card">',
-      '<div class="command-card-head">',
-      "<strong>" + (index + 1) + ". Custom Instruction</strong>",
-      '<div class="command-card-actions">',
-      '<button class="icon-button" type="button" aria-label="Move instruction up" title="Move instruction up" data-move-command="' + escapeHtml(entry.uid) + '" data-move-direction="-1"' + (index === 0 ? " disabled" : "") + ">&uarr;</button>",
-      '<button class="icon-button" type="button" aria-label="Move instruction down" title="Move instruction down" data-move-command="' + escapeHtml(entry.uid) + '" data-move-direction="1"' + (index === state.selectedCommands.length - 1 ? " disabled" : "") + ">&darr;</button>",
-      '<button class="icon-button" type="button" aria-label="Duplicate instruction" title="Duplicate instruction" data-duplicate-command="' + escapeHtml(entry.uid) + '">+</button>',
-      '<button class="icon-button" type="button" aria-label="Remove instruction" title="Remove instruction" data-remove-command="' + escapeHtml(entry.uid) + '">x</button>',
-      "</div>",
-      "</div>",
-      '<label class="inline-check"><input type="checkbox" data-command-allow-failure="' + escapeHtml(entry.uid) + '"' + (entry.allowFailure ? " checked" : "") + "> Ignore error</label>",
-      '<label class="field command-param command-param-wide">',
-      "<span>Instruction</span>",
-      '<textarea rows="3" data-command-uid="' + escapeHtml(entry.uid) + '" data-command-instruction="' + escapeHtml(entry.uid) + '">' + escapeHtml(entry.instruction || "") + "</textarea>",
-      "</label>",
-      "</article>"
-    ].join("");
   }
 
   function commandParamHtml(uid, param, value) {
@@ -1998,20 +1470,17 @@
     if (!spec) {
       return;
     }
-    state.sequenceEditedByUser = true;
     state.commandSerial += 1;
     state.selectedCommands.push({
       uid: "cmd" + state.commandSerial,
       id: commandId,
-      params: defaultCommandParams(spec),
-      allowFailure: false
+      params: defaultCommandParams(spec)
     });
     renderCommandBuilder();
     updatePreview();
   }
 
   function removeCommand(uid) {
-    state.sequenceEditedByUser = true;
     state.selectedCommands = state.selectedCommands.filter(function (entry) {
       return entry.uid !== uid;
     });
@@ -2028,7 +1497,6 @@
     if (index < 0 || target < 0 || target >= state.selectedCommands.length) {
       return;
     }
-    state.sequenceEditedByUser = true;
     temp = state.selectedCommands[index];
     state.selectedCommands[index] = state.selectedCommands[target];
     state.selectedCommands[target] = temp;
@@ -2044,21 +1512,13 @@
     if (index < 0) {
       return;
     }
-    state.sequenceEditedByUser = true;
     original = state.selectedCommands[index];
     state.commandSerial += 1;
-    var clone = {
+    state.selectedCommands.splice(index + 1, 0, {
       uid: "cmd" + state.commandSerial,
       id: original.id,
-      params: Object.assign({}, original.params || {}),
-      allowFailure: !!original.allowFailure
-    };
-    if (original.instruction !== undefined) {
-      clone.instruction = original.instruction;
-      delete clone.id;
-      delete clone.params;
-    }
-    state.selectedCommands.splice(index + 1, 0, clone);
+      params: Object.assign({}, original.params || {})
+    });
     renderCommandBuilder();
     updatePreview();
   }
@@ -2092,7 +1552,6 @@
     if (!recipe) {
       return;
     }
-    state.sequenceEditedByUser = true;
     recipe.commands.forEach(function (item) {
       var spec = commandSpec(item.id);
       var params;
@@ -2107,8 +1566,7 @@
       state.selectedCommands.push({
         uid: "cmd" + state.commandSerial,
         id: item.id,
-        params: params,
-        allowFailure: !!item.allow_failure
+        params: params
       });
     });
     renderCommandBuilder();
@@ -2116,64 +1574,9 @@
   }
 
   function updateCommandParam(uid, paramName, value) {
-    state.sequenceEditedByUser = true;
     state.selectedCommands.forEach(function (entry) {
       if (entry.uid === uid) {
         entry.params[paramName] = value.trim();
-      }
-    });
-    updatePreview();
-  }
-
-  function addSequenceStep(step, render) {
-    var spec;
-    var params;
-    if (step.command) {
-      spec = commandSpec(step.command);
-      if (!spec) {
-        return;
-      }
-      params = defaultCommandParams(spec);
-      Object.keys(step.params || {}).forEach(function (name) {
-        params[normalizeParamName(name)] = recipeValue(step.params[name]);
-      });
-      state.commandSerial += 1;
-      state.selectedCommands.push({
-        uid: "cmd" + state.commandSerial,
-        id: step.command,
-        params: params,
-        allowFailure: !!(step.allow_failure || step.ignore_error)
-      });
-    } else {
-      state.commandSerial += 1;
-      state.selectedCommands.push({
-        uid: "cmd" + state.commandSerial,
-        instruction: String(step.instruction || ""),
-        allowFailure: !!(step.allow_failure || step.ignore_error)
-      });
-    }
-    if (render) {
-      state.sequenceEditedByUser = true;
-      renderCommandBuilder();
-      updatePreview();
-    }
-  }
-
-  function updateInstructionStep(uid, value) {
-    state.sequenceEditedByUser = true;
-    state.selectedCommands.forEach(function (entry) {
-      if (entry.uid === uid) {
-        entry.instruction = value.trim();
-      }
-    });
-    updatePreview();
-  }
-
-  function updateAllowFailure(uid, value) {
-    state.sequenceEditedByUser = true;
-    state.selectedCommands.forEach(function (entry) {
-      if (entry.uid === uid) {
-        entry.allowFailure = !!value;
       }
     });
     updatePreview();
@@ -2239,207 +1642,14 @@
   }
 
   function workflowFields(workflow, operation) {
-    var outcome = selectedOutcome();
-    var wizardFields = outcomeWizardFields(outcome);
-    if (wizardFields) {
-      return wizardFields;
-    }
     if (!workflowHasOperations(workflow)) {
       return ["instructions"];
     }
-    var fields = operationFields(operation).slice();
-    if (outcome && outcome.requires_vb_branch) {
-      fields = ["vbBranchType", "vbBranchYear", "vbBranchMonth"].concat(fields);
-    }
-    return fields;
-  }
-
-  function outcomeUsesWizard(outcome) {
-    return !!outcome && ["backport", "seeddata"].indexOf(outcome.id) !== -1;
-  }
-
-  function outcomeWizardFields(outcome) {
-    var fields;
-    var seedType;
-    var seedTarget;
-    var copyFromStaging;
-    var seedBugExists;
-    if (!outcome) {
-      return null;
-    }
-    if (outcome.id === "backport") {
-      fields = ["baseBugNumber"];
-      if (inputValue("baseBugNumber")) {
-        fields.push("backportBugExists");
-      }
-      if (inputValue("backportBugExists") === "Yes") {
-        fields.push("backportBugNumber");
-        if (state.selectedWorkType === "ADE") {
-          fields.push("adeView");
-        }
-      }
-      if (["Yes", "No"].indexOf(inputValue("backportBugExists")) !== -1) {
-        fields.push("releaseYear", "releaseMonth", "details");
-      }
-      return fields;
-    }
-    if (outcome.id === "seeddata") {
-      fields = ["seedDataType"];
-      seedType = inputValue("seedDataType");
-      if (seedType) {
-        fields.push("seedTarget");
-      }
-      seedTarget = inputValue("seedTarget");
-      if (seedTarget === "Release") {
-        fields.push("seedReleaseYear", "seedReleaseMonth");
-      }
-      if (seedType && seedTarget) {
-        fields.push("seedFilePath", "seedLba", "seedBugExists");
-      }
-      seedBugExists = inputValue("seedBugExists");
-      if (seedBugExists === "Yes") {
-        fields.push("existingBugNumber");
-      } else if (seedBugExists === "No") {
-        fields.push("bugDescription");
-      }
-      if (["Yes", "No"].indexOf(seedBugExists) !== -1) {
-        if (supportsStagingCopy(seedType)) {
-          fields.push("copyFromStaging");
-        }
-        copyFromStaging = seeddataCopyFromStagingYes();
-        if (copyFromStaging) {
-          fields.push("stagingEnvironment", "stagingDbUrl", "stagingUsername", "stagingPassword", "stagingKey");
-        } else if (seedType === "Profile Option") {
-          fields.push("profileOptionCode", "profileOptionName", "profileOptionDescription", "profileOptionValue", "profileSiteEnabled", "profileSiteUpdatable", "profileUserEnabled", "profileUserUpdatable", "profileOptionUserValue", "profileValidationSql");
-        } else if (seedType === "Message") {
-          fields.push("messageSql");
-        } else if (seedType === "Lookup") {
-          fields.push("lookupType", "lookupMeaning", "lookupDescription", "lookupValues");
-        } else if (seedType === "Value Set") {
-          fields.push("details");
-        }
-        if (seedType !== "Value Set") {
-          fields.push("details");
-        }
-      }
-      return fields;
-    }
-    return null;
-  }
-
-  function wizardReadyForSequence(outcome) {
-    if (!outcomeUsesWizard(outcome)) {
-      return true;
-    }
-    if (outcome.id === "backport") {
-      if (!state.selectedWorkType || !inputValue("baseBugNumber") || ["Yes", "No"].indexOf(inputValue("backportBugExists")) === -1) {
-        return false;
-      }
-      if (inputValue("backportBugExists") === "Yes" && !inputValue("backportBugNumber")) {
-        return false;
-      }
-      if (state.selectedWorkType === "ADE" && inputValue("backportBugExists") === "Yes" && !inputValue("adeView")) {
-        return false;
-      }
-      if (!inputValue("releaseYear") || !inputValue("releaseMonth")) {
-        return false;
-      }
-      return true;
-    }
-    if (outcome.id === "seeddata") {
-      if (!state.selectedWorkType || !inputValue("seedDataType") || !inputValue("seedTarget") || !inputValue("seedFilePath")) {
-        return false;
-      }
-      if (inputValue("seedTarget") === "Release" && (!inputValue("seedReleaseYear") || !inputValue("seedReleaseMonth"))) {
-        return false;
-      }
-      if (["Yes", "No"].indexOf(inputValue("seedBugExists")) === -1) {
-        return false;
-      }
-      if (inputValue("seedBugExists") === "Yes" && !inputValue("existingBugNumber")) {
-        return false;
-      }
-      if (inputValue("seedBugExists") === "No" && !inputValue("bugDescription")) {
-        return false;
-      }
-      return true;
-    }
-    return true;
-  }
-
-  function wizardSequence(outcome) {
-    var baseBug;
-    var targetRelease;
-    var existingBug;
-    var backportBug;
-    var backportDescription;
-    var branch;
-    var view;
-    var seedTarget;
-    var seedType;
-    if (!outcomeUsesWizard(outcome) || !wizardReadyForSequence(outcome)) {
-      return [];
-    }
-    if (outcome.id === "backport") {
-      baseBug = inputValue("baseBugNumber");
-      targetRelease = inputValue("releaseYear") && inputValue("releaseMonth") ? inputValue("releaseYear") + "." + inputValue("releaseMonth") : "(target release from form)";
-      existingBug = inputValue("backportBugNumber");
-      backportBug = inputValue("backportBugExists") === "Yes" ? existingBug : "${bug}";
-      backportDescription = "Backport base BugDB bug " + baseBug + " to release " + targetRelease;
-      branch = "FUSIONAPPS_11.13." + inputValue("releaseYear") + "." + inputValue("releaseMonth") + ".0_LINUX.X64";
-      view = inputValue("adeView");
-      if (state.selectedWorkType === "ADE") {
-        if (inputValue("backportBugExists") === "No") {
-          return [
-            { instruction: "Run read-only preflight: read base bug " + baseBug + ", derive the source transaction from BugDB/OraReview metadata, confirm target release " + targetRelease + " and ADE branch " + branch + ", then continue only when those values are unambiguous." },
-            { command: "bugdb.create-bug", params: { description: backportDescription, base_rptno: baseBug } },
-            { instruction: "Use the created backport bug number from the previous command. Verify required BugDB backport fields, target-release tags, customer, GOPS, and Bug Type before any ADE begintrans step." },
-            { instruction: "Create or select the target ADE view and begin the backport transaction with the derived source transaction. If the source transaction or target view cannot be derived with confidence, stop for follow-up approval instead of inventing values." },
-            { instruction: "After the ADE transaction exists, run HCM bug validation through the parent runner. Remediate approved/fixable validation errors and rerun until PASS, or stop for follow-up approval." },
-            { instruction: "After validation passes, run checkin-save and create/update OraReview using the actual active ADE transaction." }
-          ];
-        }
-        return [
-          { instruction: "Run read-only preflight: read base bug " + baseBug + ", derive the source transaction from BugDB/OraReview metadata, confirm target release " + targetRelease + ", ADE view " + view + ", and existing backport bug " + existingBug + " before executing state-changing steps." },
-          { instruction: "Use existing backport bug " + existingBug + " and verify it is linked to base bug " + baseBug + " with required Backport/RFI fields before begintrans." },
-          { instruction: "Begin or verify the ADE backport transaction in view " + view + " using the derived source transaction. If the view is missing or the source transaction is ambiguous, stop for follow-up approval." },
-          { instruction: "Resolve or verify the backported changes in ADE view " + view + ". If merge conflicts or implementation choices appear, stop for follow-up approval before adding new state-changing steps." },
-          { command: "hcm.bug-validation", params: { view: view, bug: backportBug, transaction_from_view: "true", stop_on_failure: "true" } },
-          { command: "hcm.bvt-pmg-validate", params: { view: view, bug: backportBug } },
-          { command: "ade.checkin-save", params: { view: view } },
-          { command: "orareview.create", params: { view: view, bug: backportBug } }
-        ];
-      }
-      return [
-        { instruction: "Read base BugDB bug " + baseBug + " and derive source transaction/MR metadata, target release " + targetRelease + ", and selected work type " + state.selectedWorkType + "." },
-        inputValue("backportBugExists") === "Yes"
-          ? { instruction: "Use existing backport bug " + existingBug + ". Verify it is linked to base bug " + baseBug + " and has required backport fields/tags before continuing." }
-          : { command: "bugdb.create-bug", params: { description: backportDescription, base_rptno: baseBug } },
-        { instruction: "Run the approved " + state.selectedWorkType + " backport implementation path only after the preflight values are unambiguous." },
-        { instruction: "Run HCM bug validation through the parent runner. If validation reports fixable BugDB/header/tag/BVT errors, remediate them with approved BugDB/catalog actions and rerun validation until PASS, or stop for follow-up approval when remediation is not already approved." },
-        { instruction: "After validation passes, create/update review or MR, run required checks, and summarize completed steps, log paths, and any remaining approval needs." }
-      ];
-    }
-    if (outcome.id === "seeddata") {
-      seedType = inputValue("seedDataType");
-      seedTarget = inputValue("seedTarget") === "Release" ? "Release " + inputValue("seedReleaseYear") + "." + inputValue("seedReleaseMonth") : inputValue("seedTarget");
-      return [
-        { instruction: "Run SeedData read-only preflight for " + seedType + " targeting " + seedTarget + ": validate DB details, reviewers, comparator, seed file path, LBA, target ADE label, and any staging-copy inputs." },
-        inputValue("seedBugExists") === "Yes"
-          ? { instruction: "Use existing SeedData bug " + inputValue("existingBugNumber") + ", verify it is valid for this SeedData change, and search for an existing ADE view/transaction before creating anything." }
-          : { instruction: "Create the SeedData BugDB bug from the provided description, then use the created bug number for the ADE transaction and all later upload/comment steps." },
-        { instruction: "Prepare the exact SQL/staging/manual SeedData generation path for " + seedType + " and ask only if a required value is missing or ambiguous." },
-        { instruction: "Run load/extract/comparator/upload/checkin/OraReview steps in order. If HCM bug validation is part of the resulting sequence, run it through the parent runner and remediate fixable validation errors before proceeding." }
-      ];
-    }
-    return [];
+    return operationFields(operation);
   }
 
   function commandBuilderEnabled(workflow) {
     var operation = selectedOperation();
-    if (selectedOutcome()) {
-      return true;
-    }
     if (!workflow) {
       return false;
     }
@@ -2453,11 +1663,7 @@
   }
 
   function commandsForWorkflow(workflowId) {
-    var outcome = selectedOutcome();
     return state.commands.filter(function (command) {
-      if (outcome && outcome.command_filter && String(command.ui_group || "").toLowerCase() !== String(outcome.command_filter).toLowerCase()) {
-        return false;
-      }
       return commandAllowedForWorkflow(command, workflowId);
     });
   }
@@ -2465,14 +1671,6 @@
   function commandAllowedForWorkflow(command, workflowId) {
     if (workflowId === "custom") {
       return true;
-    }
-    if (workflowId === "alm-backport") {
-      if (Array.isArray(command.workflows) && command.workflows.indexOf("ade") !== -1) {
-        return true;
-      }
-      if (command.workflow === "ade") {
-        return true;
-      }
     }
     if (Array.isArray(command.workflows) && command.workflows.length) {
       return command.workflows.indexOf("any") !== -1 || command.workflows.indexOf(workflowId) !== -1;
@@ -2485,16 +1683,6 @@
 
   function projectOptionsForWorkflow() {
     var workflow = selectedWorkflow();
-    var outcome = selectedOutcome();
-    if (outcome && state.selectedWorkType === "VB" && Array.isArray(state.outcomeConfig.vb_projects)) {
-      var vbAllowed = {};
-      state.outcomeConfig.vb_projects.forEach(function (alias) {
-        vbAllowed[alias] = true;
-      });
-      return state.projects.filter(function (project) {
-        return vbAllowed[project.alias];
-      });
-    }
     if (!workflow || !Array.isArray(workflow.projectAliases) || !workflow.projectAliases.length) {
       return state.projects;
     }
@@ -2535,10 +1723,7 @@
     var spec = fieldSpecs[fieldName];
     var id = spec ? spec.id : fieldName + "Input";
     var element = document.getElementById(id);
-    if (element) {
-      return element.value.trim();
-    }
-    return state.fieldValues[fieldName] !== undefined ? String(state.fieldValues[fieldName]).trim() : "";
+    return element ? element.value.trim() : "";
   }
 
   function buildTitle() {
@@ -2549,7 +1734,6 @@
 
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
-    var outcome = selectedOutcome();
     var primary = "";
     if (operation && operation.titleField) {
       primary = inputValue(operation.titleField);
@@ -2557,16 +1741,16 @@
     if (!primary && workflow && !workflowHasOperations(workflow)) {
       primary = firstLine(inputValue("instructions"));
     }
-    if (!primary) {
-      primary = inputValue("baseBugNumber") || inputValue("bugNumber") || inputValue("existingBugNumber") || inputValue("backportBugNumber") || inputValue("adeView") || firstLine(inputValue("bugDescription")) || firstLine(inputValue("details")) || "new task";
-    }
     if (!primary && workflow && workflow.requiresProject) {
       primary = state.selectedProjectAlias;
+    }
+    if (!primary) {
+      primary = inputValue("bugNumber") || inputValue("adeView") || firstLine(inputValue("details")) || "new task";
     }
     primary = primary.length > 72 ? primary.slice(0, 69).trim() + "..." : primary;
 
     return [
-      outcome && outcome.label ? outcome.label : (workflow && workflow.name ? workflow.name : "Outcome"),
+      workflow && workflow.name ? workflow.name : "Workflow",
       operation && operation.name ? operation.name : "Instructions",
       primary
     ].join(": ");
@@ -2575,7 +1759,6 @@
   function buildTaskText() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
-    var outcome = selectedOutcome();
     var fields = workflowFields(workflow, operation);
     var lines = [];
 
@@ -2586,12 +1769,6 @@
     if (operation && operation.description) {
       lines.push(operation.description);
       lines.push("");
-    }
-    if (state.selectedWorkType) {
-      lines.push("Work type: " + state.selectedWorkType);
-    }
-    if (state.selectedWorkType === "VB" && state.selectedProjectAlias) {
-      lines.push("VB project: " + state.selectedProjectAlias);
     }
 
     fields.forEach(function (fieldName) {
@@ -2627,9 +1804,6 @@
           return;
         }
       }
-      if (outcome && outcome.requires_vb_branch && (fieldName === "vbBranchYear" || fieldName === "vbBranchMonth")) {
-        return;
-      }
       var value = inputValue(fieldName);
       if (value) {
         var taskLabel = fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName;
@@ -2645,13 +1819,6 @@
       var month = inputValue("releaseMonth");
       if (year && month) {
         lines.push("Target release: " + year + "." + month);
-      }
-    }
-
-    if (outcome && outcome.requires_vb_branch) {
-      lines.push("VB base branch: " + vbBranchName());
-      if (state.selectedProjectAlias) {
-        lines.push("VB project: " + state.selectedProjectAlias);
       }
     }
 
@@ -2692,23 +1859,10 @@
     var lines = ["Commands:"];
     state.selectedCommands.forEach(function (entry) {
       var spec = commandSpec(entry.id);
-      if (entry.instruction !== undefined) {
-        if (!entry.instruction.trim()) {
-          return;
-        }
-        lines.push("- instruction: " + entry.instruction.trim());
-        if (entry.allowFailure) {
-          lines.push("  allow_failure: true");
-        }
-        return;
-      }
       if (!spec) {
         return;
       }
       lines.push("- command: " + entry.id);
-      if (entry.allowFailure) {
-        lines.push("  allow_failure: true");
-      }
       (spec.parameters || []).forEach(function (param) {
         var name = normalizeParamName(param.name);
         var value = entry.params && entry.params[name] ? entry.params[name].trim() : "";
@@ -2732,15 +1886,9 @@
   function buildIssueBody() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
-    var outcome = selectedOutcome();
     var context = selectedContextForIssue();
-    if (!outcome || !workflow) {
-      return "Select an outcome to build the GitHub issue.";
-    }
     var lines = [
       "Queue: " + queuedLabel(),
-      "",
-      "Outcome: " + (outcome.id || ""),
       "",
       "Workflow: " + (workflow ? workflow.id : "")
     ];
@@ -2750,11 +1898,6 @@
 
     if (operation) {
       lines.push("Operation: " + operation.id);
-    }
-    if (state.selectedWorkType === "VB" && selectedWorkflow() && selectedWorkflow().requiresProject && state.selectedProjectAlias) {
-      lines.push("Project: " + state.selectedProjectAlias);
-    } else if (state.selectedWorkType !== "VB" && state.selectedProjectAlias) {
-      lines.push("Project: " + state.selectedProjectAlias);
     }
 
     lines.push("");
@@ -2803,9 +1946,6 @@
     var operation = selectedOperation();
     var requiredFields = operation && Array.isArray(operation.requiredFields) ? operation.requiredFields : [];
 
-    if (!selectedOutcome()) {
-      throw new Error("Select an outcome.");
-    }
     if (!els.ownerInput.value.trim()) {
       throw new Error("Selected runner is missing a GitHub owner.");
     }
@@ -2813,13 +1953,7 @@
       throw new Error("Selected runner is missing a GitHub repo.");
     }
     if (!workflow) {
-      throw new Error("Selected outcome is not mapped to a workflow.");
-    }
-    if (!state.selectedWorkType) {
-      throw new Error("Select ADE or VB work type.");
-    }
-    if (state.selectedWorkType === "VB" && selectedWorkflow() && selectedWorkflow().requiresProject && !state.selectedProjectAlias) {
-      throw new Error("Select a VB project.");
+      throw new Error("Select a workflow.");
     }
     if (!selectedModelPreset()) {
       throw new Error("Select a model.");
@@ -2889,8 +2023,8 @@
 
       if (seedTarget === "Release") {
         var seedYear = inputValue("seedReleaseYear").trim();
-        if (["26", "27", "28", "29", "30", "31", "32"].indexOf(seedYear) === -1) {
-          throw new Error("Release year must be 26, 27, 28, 29, 30, 31, or 32.");
+        if (["26", "27", "28", "29", "30"].indexOf(seedYear) === -1) {
+          throw new Error("Release year must be 26, 27, 28, 29, or 30.");
         }
 
         var seedMonth = inputValue("seedReleaseMonth").trim();
@@ -2900,14 +2034,8 @@
       }
 
       var existingBugNumber = inputValue("existingBugNumber").trim();
-      if (["Yes", "No"].indexOf(inputValue("seedBugExists")) === -1) {
-        throw new Error("Select whether you already have a SeedData bug.");
-      }
       if (existingBugNumber && !/^[0-9]+$/.test(existingBugNumber)) {
         throw new Error("Existing bug number must contain digits only.");
-      }
-      if (inputValue("seedBugExists") === "Yes" && !existingBugNumber) {
-        throw new Error("Enter Existing bug number.");
       }
       if (!existingBugNumber && !inputValue("bugDescription")) {
         throw new Error("Enter Bug description.");
@@ -2989,10 +2117,6 @@
     }
 
     if (workflow.id !== "alm-backport") {
-      var outcome = selectedOutcome();
-      if (outcome && outcome.requires_vb_branch) {
-        validateVbBranch();
-      }
       return;
     }
 
@@ -3007,22 +2131,13 @@
     }
 
     var backportBug = inputValue("backportBugNumber").trim();
-    if (["Yes", "No"].indexOf(inputValue("backportBugExists")) === -1) {
-      throw new Error("Select whether you already have a backport bug.");
-    }
     if (backportBug && !/^\d+$/.test(backportBug)) {
       throw new Error("Backport bug number must contain digits only.");
     }
-    if (inputValue("backportBugExists") === "Yes" && !backportBug) {
-      throw new Error("Enter Backport bug number.");
-    }
-    if (backportType === "ADE" && inputValue("backportBugExists") === "Yes" && !inputValue("adeView").trim()) {
-      throw new Error("Enter the existing ADE view to verify.");
-    }
 
     var year = inputValue("releaseYear").trim();
-    if (["26", "27", "28", "29", "30", "31", "32"].indexOf(year) === -1) {
-      throw new Error("Release year must be 26, 27, 28, 29, 30, 31, or 32.");
+    if (["26", "27", "28", "29", "30"].indexOf(year) === -1) {
+      throw new Error("Release year must be 26, 27, 28, 29, or 30.");
     }
 
     var month = inputValue("releaseMonth").trim();
@@ -3031,39 +2146,9 @@
     }
   }
 
-  function vbBranchName() {
-    var type = inputValue("vbBranchType") || "Integration";
-    if (type === "main") {
-      return "main";
-    }
-    return type + "-" + inputValue("vbBranchYear") + inputValue("vbBranchMonth");
-  }
-
-  function validateVbBranch() {
-    var type = inputValue("vbBranchType");
-    if (["Integration", "maintenance", "main"].indexOf(type) === -1) {
-      throw new Error("VB branch type must be Integration, maintenance, or main.");
-    }
-    if (type === "main") {
-      return;
-    }
-    if (["26", "27", "28", "29", "30", "31", "32"].indexOf(inputValue("vbBranchYear")) === -1) {
-      throw new Error("VB branch YY must be 26 through 32.");
-    }
-    if (["01", "04", "07", "10"].indexOf(inputValue("vbBranchMonth")) === -1) {
-      throw new Error("VB branch MM must be 01, 04, 07, or 10.");
-    }
-  }
-
   function validateSelectedCommands(workflow) {
     var views = {};
     state.selectedCommands.forEach(function (entry) {
-      if (entry.instruction !== undefined) {
-        if (!entry.instruction.trim()) {
-          throw new Error("Enter custom instruction text or remove the empty step.");
-        }
-        return;
-      }
       var spec = commandSpec(entry.id);
       if (!spec) {
         throw new Error("Unknown command: " + entry.id + ".");
