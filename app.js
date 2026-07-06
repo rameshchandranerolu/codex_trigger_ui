@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260702-simplified-workflow-form";
+  var ASSET_VERSION = "20260616-rag-study-modes";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -167,17 +167,69 @@
       options: ["VB", "ADE"],
       taskLabel: "Backport type"
     },
+    backportCheckSourceType: {
+      id: "backportCheckSourceTypeInput",
+      label: "Source type",
+      type: "select",
+      options: ["ADE", "VB"],
+      taskLabel: "Source type"
+    },
+    backportCheckSource: {
+      id: "backportCheckSourceInput",
+      label: "Source bug / transaction / MR",
+      placeholder: "39313317, rnerolu_bug-39313317, VB branch, or MR URL",
+      taskLabel: "Source"
+    },
+    backportCheckBaseReleaseYear: {
+      id: "backportCheckBaseReleaseYearInput",
+      label: "Base release year",
+      type: "select",
+      options: ["26", "27", "28", "29", "30"],
+      taskLabel: "Base release year",
+      conditional: "backportCheckBaseRelease"
+    },
+    backportCheckBaseReleaseMonth: {
+      id: "backportCheckBaseReleaseMonthInput",
+      label: "Base release month",
+      type: "select",
+      options: ["01", "04", "07", "10"],
+      taskLabel: "Base release month",
+      conditional: "backportCheckBaseRelease"
+    },
+    backportCheckTargetReleaseYear: {
+      id: "backportCheckTargetReleaseYearInput",
+      label: "Target release year",
+      type: "select",
+      options: ["26", "27", "28", "29", "30"],
+      taskLabel: "Target release year"
+    },
+    backportCheckTargetReleaseMonth: {
+      id: "backportCheckTargetReleaseMonthInput",
+      label: "Target release month",
+      type: "select",
+      options: ["01", "04", "07", "10"],
+      taskLabel: "Target release month"
+    },
+    backportCheckSafeBypass: {
+      id: "backportCheckSafeBypassInput",
+      label: "Safe to bypass backport",
+      type: "checkbox",
+      taskLabel: "Safe to bypass backport"
+    },
+    backportCheckBypassReason: {
+      id: "backportCheckBypassReasonInput",
+      label: "Bypass reason",
+      type: "textarea",
+      rows: 3,
+      placeholder: "Optional reason for bypassing this source/target release",
+      taskLabel: "Bypass reason",
+      conditional: "backportCheckBypass"
+    },
     baseBugNumber: {
       id: "baseBugNumberInput",
       label: "Base bug number",
       placeholder: "39335023",
       taskLabel: "Base bug number"
-    },
-    backportBugNumber: {
-      id: "backportBugNumberInput",
-      label: "Backport bug number",
-      placeholder: "Optional",
-      taskLabel: "Existing backport bug number"
     },
     releaseYear: {
       id: "releaseYearInput",
@@ -1099,6 +1151,10 @@
     if (workflowHasOperations(workflow)) {
       html += operationSelectHtml(workflow);
     }
+    if (workflow.requiresProject) {
+      html += projectSelectHtml();
+    }
+
     workflowFields(workflow, operation).forEach(function (fieldName) {
       html += fieldHtml(fieldName);
     });
@@ -1113,6 +1169,15 @@
           state.selectedCommands = [];
         }
         renderDynamicFields();
+        updatePreview();
+      });
+    }
+
+    var projectInput = document.getElementById("projectInput");
+    if (projectInput) {
+      projectInput.addEventListener("change", function () {
+        state.selectedProjectAlias = projectInput.value;
+        updateSelectedWorkflowLabel();
         updatePreview();
       });
     }
@@ -1193,11 +1258,24 @@
   function refreshSeedDataFields() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
+    var backportCheckSourceType = inputValue("backportCheckSourceType") || "ADE";
+    var backportCheckBypass = inputValue("backportCheckSafeBypass") === "Y";
     if (workflow && workflow.id === "custom" && operation && operation.id === "copy-person-data") {
       ensureStagingDefaults();
       return;
     }
     if (!workflow || workflow.id !== "seeddata") {
+      Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("[data-conditional]"), function (field) {
+        var conditional = field.getAttribute("data-conditional");
+        var show = true;
+        if (conditional === "backportCheckBaseRelease") {
+          show = workflow && workflow.id === "custom" && operation && operation.id === "backport-check" && backportCheckSourceType === "VB";
+        } else if (conditional === "backportCheckBypass") {
+          show = workflow && workflow.id === "custom" && operation && operation.id === "backport-check" && backportCheckBypass;
+        }
+        field.hidden = !show;
+        field.style.display = show ? "" : "none";
+      });
       return;
     }
     var typeInput = document.getElementById("seedDataTypeInput");
@@ -1235,6 +1313,10 @@
         show = canCopyFromStaging;
       } else if (conditional === "stagingCopy") {
         show = copyFromStaging;
+      } else if (conditional === "backportCheckBaseRelease") {
+        show = workflow && workflow.id === "custom" && operation && operation.id === "backport-check" && backportCheckSourceType === "VB";
+      } else if (conditional === "backportCheckBypass") {
+        show = workflow && workflow.id === "custom" && operation && operation.id === "backport-check" && backportCheckBypass;
       }
       field.hidden = !show;
       field.style.display = show ? "" : "none";
@@ -1253,6 +1335,21 @@
       operations.map(function (operation) {
         var selected = operation.id === state.selectedOperationId ? " selected" : "";
         return '<option value="' + escapeHtml(operation.id) + '"' + selected + ">" + escapeHtml(operation.name || operation.id) + "</option>";
+      }).join(""),
+      "</select>",
+      "</label>"
+    ].join("");
+  }
+
+  function projectSelectHtml() {
+    var projects = projectOptionsForWorkflow();
+    return [
+      '<label class="field">',
+      "<span>Project</span>",
+      '<select id="projectInput">',
+      projects.map(function (project) {
+        var selected = project.alias === state.selectedProjectAlias ? " selected" : "";
+        return '<option value="' + escapeHtml(project.alias) + '"' + selected + ">" + escapeHtml(project.name || project.alias) + "</option>";
       }).join(""),
       "</select>",
       "</label>"
@@ -1280,6 +1377,15 @@
           return '<option value="' + escapeHtml(option) + '"' + selected + ">" + escapeHtml(option) + "</option>";
         }).join(""),
         "</select>",
+        "</label>"
+      ].join("");
+    }
+    if (spec.type === "checkbox") {
+      var checked = spec.defaultValue === "Y" || spec.defaultValue === true ? " checked" : "";
+      return [
+        '<label class="field"' + fieldAttrs + '>',
+        "<span>" + escapeHtml(spec.label) + "</span>",
+        '<input id="' + spec.id + '" type="checkbox"' + checked + '>',
         "</label>"
       ].join("");
     }
@@ -1659,6 +1765,9 @@
     if (workflow.id === "custom" && operation && operation.id === "copy-person-data") {
       return false;
     }
+    if (workflow.id === "custom" && operation && operation.id === "backport-check") {
+      return false;
+    }
     return true;
   }
 
@@ -1723,7 +1832,13 @@
     var spec = fieldSpecs[fieldName];
     var id = spec ? spec.id : fieldName + "Input";
     var element = document.getElementById(id);
-    return element ? element.value.trim() : "";
+    if (!element) {
+      return "";
+    }
+    if (spec && spec.type === "checkbox") {
+      return element.checked ? "Y" : "N";
+    }
+    return element.value.trim();
   }
 
   function buildTitle() {
@@ -1804,8 +1919,25 @@
           return;
         }
       }
+      if (workflow && workflow.id === "custom" && operation && operation.id === "backport-check") {
+        var checkConditional = fieldSpecs[fieldName] && fieldSpecs[fieldName].conditional;
+        var sourceType = inputValue("backportCheckSourceType");
+        var safeBypass = inputValue("backportCheckSafeBypass") === "Y";
+        if (checkConditional === "backportCheckBaseRelease" && sourceType !== "VB") {
+          return;
+        }
+        if (checkConditional === "backportCheckBypass" && !safeBypass) {
+          return;
+        }
+        if (fieldName === "backportCheckTargetReleaseYear" || fieldName === "backportCheckTargetReleaseMonth" || fieldName === "backportCheckBaseReleaseYear" || fieldName === "backportCheckBaseReleaseMonth") {
+          return;
+        }
+      }
       var value = inputValue(fieldName);
       if (value) {
+        if (fieldSpecs[fieldName] && fieldSpecs[fieldName].type === "checkbox" && value !== "Y") {
+          return;
+        }
         var taskLabel = fieldSpecs[fieldName] && fieldSpecs[fieldName].taskLabel ? fieldSpecs[fieldName].taskLabel : fieldName;
         if (workflow && workflow.id === "seeddata" && fieldName === "stagingKey") {
           taskLabel = stagingKeyLabelForType(inputValue("seedDataType"));
@@ -1827,6 +1959,21 @@
       var seedMonth = inputValue("seedReleaseMonth");
       if (seedYear && seedMonth) {
         lines.push("Target release: " + seedYear + "." + seedMonth);
+      }
+    }
+
+    if (workflow && workflow.id === "custom" && operation && operation.id === "backport-check") {
+      if (inputValue("backportCheckSourceType") === "VB") {
+        var checkBaseYear = inputValue("backportCheckBaseReleaseYear");
+        var checkBaseMonth = inputValue("backportCheckBaseReleaseMonth");
+        if (checkBaseYear && checkBaseMonth) {
+          lines.push("Base release: " + checkBaseYear + "." + checkBaseMonth);
+        }
+      }
+      var checkTargetYear = inputValue("backportCheckTargetReleaseYear");
+      var checkTargetMonth = inputValue("backportCheckTargetReleaseMonth");
+      if (checkTargetYear && checkTargetMonth) {
+        lines.push("Target release: " + checkTargetYear + "." + checkTargetMonth);
       }
     }
 
@@ -1852,6 +1999,11 @@
   }
 
   function buildCommandLines() {
+    var workflow = selectedWorkflow();
+    var operation = selectedOperation();
+    if (workflow && workflow.id === "custom" && operation && operation.id === "backport-check") {
+      return buildBackportCheckCommandLines();
+    }
     if (!state.selectedCommands.length) {
       return [];
     }
@@ -1883,6 +2035,28 @@
     return lines;
   }
 
+  function buildBackportCheckCommandLines() {
+    var sourceType = inputValue("backportCheckSourceType");
+    var safeBypass = inputValue("backportCheckSafeBypass");
+    var lines = [
+      "Commands:",
+      "- command: backport.check",
+      "  source_type: " + sourceType,
+      "  source: " + inputValue("backportCheckSource")
+    ];
+    if (sourceType === "VB") {
+      lines.push("  base_release_year: " + inputValue("backportCheckBaseReleaseYear"));
+      lines.push("  base_release_month: " + inputValue("backportCheckBaseReleaseMonth"));
+    }
+    lines.push("  target_release_year: " + inputValue("backportCheckTargetReleaseYear"));
+    lines.push("  target_release_month: " + inputValue("backportCheckTargetReleaseMonth"));
+    lines.push("  safe_bypass: " + safeBypass);
+    if (safeBypass === "Y" && inputValue("backportCheckBypassReason")) {
+      lines.push("  bypass_reason: " + inputValue("backportCheckBypassReason"));
+    }
+    return lines;
+  }
+
   function buildIssueBody() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
@@ -1898,6 +2072,10 @@
 
     if (operation) {
       lines.push("Operation: " + operation.id);
+    }
+
+    if (workflow && workflow.requiresProject) {
+      lines.push("Project: " + state.selectedProjectAlias);
     }
 
     lines.push("");
@@ -1947,10 +2125,10 @@
     var requiredFields = operation && Array.isArray(operation.requiredFields) ? operation.requiredFields : [];
 
     if (!els.ownerInput.value.trim()) {
-      throw new Error("Selected runner is missing a GitHub owner.");
+      throw new Error("Enter the GitHub owner.");
     }
     if (!els.repoInput.value.trim()) {
-      throw new Error("Selected runner is missing a GitHub repo.");
+      throw new Error("Enter the GitHub repo.");
     }
     if (!workflow) {
       throw new Error("Select a workflow.");
@@ -1964,6 +2142,10 @@
     if (!workflowHasOperations(workflow)) {
       requiredFields = ["instructions"];
     }
+    if (workflow.requiresProject && !state.selectedProjectAlias) {
+      throw new Error("Select a project.");
+    }
+
     requiredFields.forEach(function (fieldName) {
       if (!inputValue(fieldName)) {
         throw new Error("Enter " + (fieldSpecs[fieldName] ? fieldSpecs[fieldName].label : fieldName) + ".");
@@ -2007,6 +2189,11 @@
       if (toDb !== "defaultDB" && !/^jdbc:oracle:thin:@\S+$/i.test(toDb)) {
         throw new Error("To DB must be defaultDB or a jdbc:oracle:thin:@ URL.");
       }
+      return;
+    }
+
+    if (workflow.id === "custom" && operation && operation.id === "backport-check") {
+      validateBackportCheckInputs();
       return;
     }
 
@@ -2130,11 +2317,6 @@
       throw new Error("Base bug number must contain digits only.");
     }
 
-    var backportBug = inputValue("backportBugNumber").trim();
-    if (backportBug && !/^\d+$/.test(backportBug)) {
-      throw new Error("Backport bug number must contain digits only.");
-    }
-
     var year = inputValue("releaseYear").trim();
     if (["26", "27", "28", "29", "30"].indexOf(year) === -1) {
       throw new Error("Release year must be 26, 27, 28, 29, or 30.");
@@ -2143,6 +2325,30 @@
     var month = inputValue("releaseMonth").trim();
     if (["01", "04", "07", "10"].indexOf(month) === -1) {
       throw new Error("Release month must be 01, 04, 07, or 10.");
+    }
+  }
+
+  function validateBackportCheckInputs() {
+    var sourceType = inputValue("backportCheckSourceType").trim();
+    if (["ADE", "VB"].indexOf(sourceType) === -1) {
+      throw new Error("Source type must be ADE or VB.");
+    }
+    if (!inputValue("backportCheckSource")) {
+      throw new Error("Enter Source bug / transaction / MR.");
+    }
+    if (sourceType === "VB") {
+      if (["26", "27", "28", "29", "30"].indexOf(inputValue("backportCheckBaseReleaseYear")) === -1) {
+        throw new Error("Base release year must be 26, 27, 28, 29, or 30.");
+      }
+      if (["01", "04", "07", "10"].indexOf(inputValue("backportCheckBaseReleaseMonth")) === -1) {
+        throw new Error("Base release month must be 01, 04, 07, or 10.");
+      }
+    }
+    if (["26", "27", "28", "29", "30"].indexOf(inputValue("backportCheckTargetReleaseYear")) === -1) {
+      throw new Error("Target release year must be 26, 27, 28, 29, or 30.");
+    }
+    if (["01", "04", "07", "10"].indexOf(inputValue("backportCheckTargetReleaseMonth")) === -1) {
+      throw new Error("Target release month must be 01, 04, 07, or 10.");
     }
   }
 

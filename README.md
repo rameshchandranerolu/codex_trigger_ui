@@ -34,10 +34,9 @@ Before making this repo public, review `projects.json` and keep workflow names,
 project aliases, and descriptions non-sensitive.
 
 The UI is workflow-first. BugDB and ADE requests are submitted through
-`Workflow: custom`, so they can be typed naturally in the Additional inputs box.
-The runner resolves local project context from workflow defaults and server-side
-configuration instead of asking the user to choose a project in the form.
-`commands.json` drives optional structured command entries that the private
-runner validates before execution.
+`Workflow: custom` with a selected run project, so they can be typed naturally
+in the Additional inputs box. `Project:` is generated for workflows that require
+a selected local context. `commands.json` drives optional structured command
+entries that the private runner validates before execution.
 Keep the private runner repo's `config.json` mapped with matching workflows and
 run-project aliases before using newly added workflow buttons.

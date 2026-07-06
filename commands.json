@@ -132,6 +132,173 @@
       }
     },
     {
+      "id": "backport.check",
+      "label": "Backport Check",
+      "workflows": [
+        "custom"
+      ],
+      "ui_group": "Backport",
+      "runner_safe": true,
+      "order": 18,
+      "template": "backport check source_type={{source_type}} source={{source}} target={{target_release_year}}.{{target_release_month}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "check whether ADE transaction rnerolu_bug-39313317 is merged to 26.07",
+          "run backport check for VB branch rnerolu_mnt2607-39416733 from base 26.04 to target 26.07",
+          "bypass backport check for bug 39313317 to 26.07"
+        ],
+        "parameter_hints": [
+          "Source type must be ADE or VB.",
+          "For ADE, source can be a Bronze bug number or ADE transaction name; base release is not required.",
+          "For VB, source should be a source branch, commit, or MR text and base release is required.",
+          "Target release is composed from target_release_year and target_release_month.",
+          "Use safe_bypass=Y only when the requester explicitly selected the bypass checkbox or clearly approved bypassing the source for the target release."
+        ]
+      },
+      "instructions": [
+        "Backport Check is read-only except for writing local report artifacts and local bypass state under /scratch/<runner-user>/codex-backport-check.",
+        "The parent runner executes runner_common/backport_check.py so file comparison and full diff artifact generation happen outside the Codex child process.",
+        "Do not paste large diff artifacts into the final response; summarize status and include artifact paths."
+      ],
+      "parameters": [
+        {
+          "name": "source_type",
+          "label": "Source type",
+          "required": true,
+          "options": [
+            "ADE",
+            "VB"
+          ],
+          "pattern": "^(ADE|VB)$"
+        },
+        {
+          "name": "source",
+          "label": "Source bug / transaction / MR",
+          "required": true,
+          "pattern": "^[\\s\\S]+$"
+        },
+        {
+          "name": "base_release_year",
+          "label": "Base release year",
+          "required": false,
+          "options": [
+            "26",
+            "27",
+            "28",
+            "29",
+            "30"
+          ],
+          "pattern": "^(|26|27|28|29|30)$"
+        },
+        {
+          "name": "base_release_month",
+          "label": "Base release month",
+          "required": false,
+          "options": [
+            "01",
+            "04",
+            "07",
+            "10"
+          ],
+          "pattern": "^(|01|04|07|10)$"
+        },
+        {
+          "name": "target_release_year",
+          "label": "Target release year",
+          "required": true,
+          "options": [
+            "26",
+            "27",
+            "28",
+            "29",
+            "30"
+          ],
+          "pattern": "^(26|27|28|29|30)$"
+        },
+        {
+          "name": "target_release_month",
+          "label": "Target release month",
+          "required": true,
+          "options": [
+            "01",
+            "04",
+            "07",
+            "10"
+          ],
+          "pattern": "^(01|04|07|10)$"
+        },
+        {
+          "name": "safe_bypass",
+          "label": "Safe to bypass backport",
+          "required": false,
+          "default": "N",
+          "options": [
+            "N",
+            "Y"
+          ],
+          "pattern": "^(N|Y)$"
+        },
+        {
+          "name": "bypass_reason",
+          "label": "Bypass reason",
+          "required": false,
+          "pattern": "^[\\s\\S]*$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Run the repo-common Backport Check analyzer outside Codex and write compact JSON plus full diff artifacts.",
+        "commands": [
+          {
+            "label": "Run Backport Check analyzer",
+            "timeout_seconds": 900,
+            "argv": [
+              "python3",
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/backport_check.py",
+              "--source-type",
+              "{{source_type}}",
+              "--source",
+              "{{source}}",
+              {
+                "when_param": "base_release_year",
+                "value": "--base-release-year"
+              },
+              {
+                "when_param": "base_release_year",
+                "value": "{{base_release_year}}"
+              },
+              {
+                "when_param": "base_release_month",
+                "value": "--base-release-month"
+              },
+              {
+                "when_param": "base_release_month",
+                "value": "{{base_release_month}}"
+              },
+              "--target-release-year",
+              "{{target_release_year}}",
+              "--target-release-month",
+              "{{target_release_month}}",
+              "--safe-bypass",
+              "{{safe_bypass}}",
+              {
+                "when_param": "bypass_reason",
+                "value": "--bypass-reason"
+              },
+              {
+                "when_param": "bypass_reason",
+                "value": "{{bypass_reason}}"
+              },
+              "--requester",
+              "rnerolu"
+            ]
+          }
+        ]
+      }
+    },
+    {
       "id": "ade.create-view",
       "label": "Create ADE View",
       "workflows": [
@@ -141,6 +308,22 @@
       ],
       "order": 10,
       "template": "ade createview view={{view}} branch={{branch}} txn={{txn}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-handoff",
+        "examples": [
+          "create a view and transaction for bug 39666604",
+          "create ADE view for bug 39666604",
+          "start a transaction for bug 39666604 on FUSIONAPPS_PT.V2MIBHCMBRONZE"
+        ],
+        "parameter_hints": [
+          "Extract exactly one bug number from the request when present.",
+          "When the request gives a bug number but no transaction, propose txn=<runner-user>_bug-<bugid>.",
+          "When the request gives a bug number but no view, propose a conventional view name such as <runner-user>_v_bug_<bugid>_bronze unless project context or requester text clearly names another view.",
+          "If the branch or label series is missing, use project context when it is unambiguous; otherwise ask for the branch in the pre-approval response.",
+          "After requester approval, do not create the ADE view inside Codex; emit CODEX_RUNNER_COMMAND: ade.create-view view=<viewname> txn=<txnname> branch=<series>."
+        ]
+      },
       "parameters": [
         {
           "name": "view",
@@ -578,7 +761,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -e\nhelper_new=\"/scratch/rnerolu/.codex/skills/ade-lens/scripts/ade-scripts/CreateOra.sh\"\nhelper_old=\"/scratch/rnerolu/.codex/skills/ade-lens/scripts/CreateOra.sh\"\nif [ -f \"$helper_new\" ]; then\n  helper=\"$helper_new\"\nelif [ -f \"$helper_old\" ]; then\n  helper=\"$helper_old\"\nelse\n  echo \"Missing ADE Lens helper: $helper_new\" >&2\n  echo \"Legacy helper path also missing: $helper_old\" >&2\n  exit 127\nfi\necho \"Runner diagnostic: using ADE Lens helper $helper\"\nargs=(\"-view\" \"{{view}}\" \"-bug\" \"{{bug}}\")\nif [ -n \"{{reviewers}}\" ]; then\n  args+=(\"-reviewers\" \"{{reviewers}}\")\nfi\nexec bash \"$helper\" \"${args[@]}\""
+              "set -e\nhelper_new=\"/scratch/rnerolu/.codex/skills/ade-lens/scripts/ade-scripts/CreateOra.sh\"\nhelper_old=\"/scratch/rnerolu/.codex/skills/ade-lens/scripts/CreateOra.sh\"\ndirect_new=\"/scratch/rnerolu/.codex/skills/ade-lens/scripts/ade-scripts/UploadOraReviewDirect.sh\"\ndirect_old=\"/scratch/rnerolu/.codex/skills/ade-lens/scripts/UploadOraReviewDirect.sh\"\nif [ -f \"$helper_new\" ]; then\n  helper=\"$helper_new\"\nelif [ -f \"$helper_old\" ]; then\n  helper=\"$helper_old\"\nelse\n  echo \"Missing ADE Lens helper: $helper_new\" >&2\n  echo \"Legacy helper path also missing: $helper_old\" >&2\n  exit 127\nfi\nif [ -f \"$direct_new\" ]; then\n  direct_helper=\"$direct_new\"\nelif [ -f \"$direct_old\" ]; then\n  direct_helper=\"$direct_old\"\nelse\n  direct_helper=\"\"\nfi\nview=\"{{view}}\"\nbug=\"{{bug}}\"\ntransaction=\"{{transaction}}\"\nreviewers=\"{{reviewers}}\"\nif [ -z \"$transaction\" ]; then\n  view_status=$(ade useview \"$view\" -noenv -silent -exec \"ade pwv\" 2>/dev/null || true)\n  transaction=$(printf '%s\\n' \"$view_status\" | sed -n 's/^VIEW_TXN_NAME[[:space:]]*:[[:space:]]*//p' | awk 'NF {print $1}' | tail -1)\nfi\ncase \"$transaction\" in\n  *_rfi_backport_*|*_backport_*)\n    if [ -z \"$direct_helper\" ]; then\n      echo \"Missing ADE Lens direct upload helper: $direct_new\" >&2\n      echo \"Legacy direct helper path also missing: $direct_old\" >&2\n      exit 127\n    fi\n    echo \"Runner diagnostic: detected backport-format transaction ${transaction}; using direct OraReview upload without renametrans\"\n    args=(\"-view\" \"$view\")\n    if [ -n \"$reviewers\" ]; then\n      args+=(\"-reviewers\" \"$reviewers\")\n    fi\n    exec bash \"$direct_helper\" \"${args[@]}\"\n    ;;\nesac\necho \"Runner diagnostic: using ADE Lens helper $helper\"\nargs=(\"-view\" \"$view\" \"-bug\" \"$bug\")\nif [ -n \"$reviewers\" ]; then\n  args+=(\"-reviewers\" \"$reviewers\")\nfi\nexec bash \"$helper\" \"${args[@]}\""
             ]
           }
         ]

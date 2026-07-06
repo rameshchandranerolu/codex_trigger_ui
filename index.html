@@ -47,8 +47,14 @@
                 <option value="gpt-5.5-priority">GPT-5.5 Priority</option>
               </select>
             </label>
-            <input id="ownerInput" type="hidden">
-            <input id="repoInput" type="hidden">
+            <label class="field">
+              <span>GitHub owner</span>
+              <input id="ownerInput" autocomplete="off" spellcheck="false">
+            </label>
+            <label class="field">
+              <span>GitHub repo</span>
+              <input id="repoInput" autocomplete="off" spellcheck="false">
+            </label>
           </div>
 
           <div id="dynamicFields" class="dynamic-fields"></div>
@@ -83,6 +89,6 @@
       </section>
     </main>
 
-    <script src="./app.js?v=20260702-simplified-workflow-form"></script>
+    <script src="./app.js?v=20260611-ios-link-copy"></script>
   </body>
 </html>
