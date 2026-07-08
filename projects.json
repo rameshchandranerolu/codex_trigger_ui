@@ -290,6 +290,34 @@
       ]
     },
     {
+      "id": "silver-merge",
+      "name": "Silver Merge",
+      "kind": "ADE",
+      "description": "Validate ADE Bronze bugs, then prepare an approval-gated merge into Silver.",
+      "requiresProject": true,
+      "projectAliases": [
+        "ade"
+      ],
+      "context": "Approval-gated Silver Merge workflow. Only ADE Bronze bugs should be provided. Do not enter VB/ALM bugs. Initial run is read-only: parse and deduplicate comma-separated Bronze bugs, verify each BugDB bug exists, reject VB/ALM-backed bugs, resolve the ADE Bronze transaction, verify it is merged and available in the Bronze label, resolve the merged/fixed Bronze label for ordering, and stop with CODEX_TRIGGER_STATUS: needs-input for any ambiguous or invalid bug after applying the OraReview plus HCMBRONZE plus <uid>_bug-<bugno> fallback rule. Transaction selection must prefer an exact <uid>_bug-<bugno> Bronze transaction over any RFI/backport/MLR/ALM maintenance transaction. When fixed-in label evidence is missing, a bug can still qualify as ADE Bronze if BugDB has an OraReview link, an HCMBRONZE tag, and a transaction name matching <uid>_bug-<bugno>; use the date when the numeric Version Fixed field was added or changed as the ordering date. BugDB MCP is expected to be available; use it first and retry once on cancelled or transient reads before declaring BugDB evidence unavailable. Do not ask the requester to run read-only validation, do not combine CODEX_TRIGGER_STATUS: needs-input with a runner handoff, and do not paste validation scripts or raw command output in the user reply. If read-only ADE shell evidence is unavoidable, emit the parent-runner handoff as an internal validation step and summarize the resumed result as a clean table or concise blocker list. For every bug with usable Bronze evidence, show a table sorted oldest-to-newest with columns Bug, Transaction, Bronze Merge label, Bug description, and Assignee; do not include proof summary and do not wrap transaction names or labels in markdown backticks. Before approval, inspect each resolved Bronze transaction ADE diff file list using .merge_diffs first and ade describetrans -short -diff_txn_changes <txn_name> as fallback, then split bugs into numbered tables for transactions containing .rtf or .xdm files, transactions containing jazn-data.xml files, and all other transactions. Each table means a separate Silver bug, Silver view, and Silver transaction. For the .rtf/.xdm table, ask whether to copy files from the Bronze ADE path instead of fetchtrans, defaulting to Yes; if Yes, checkout/copy files from Bronze latest into the Silver view and checkin/savetrans instead of fetchtrans. Show only non-empty tables, state that separate Silver bugs must be created, provide the selected-table execution sequence, and ask which table number to merge first before creating any Silver state. Only after every bug in the selected table validates cleanly and the requester confirms that table number, list the exact fetch/copy order sorted oldest-to-newest by Bronze Merge label date or fallback Version Fixed date and ask for approval. After approval, create a Silver bug/view/transaction or reuse the optional Silver bug only when exactly one matching ADE view with transaction <user>_bug-<silver_bug> exists. Fetch Bronze transactions or copy Bronze files in the approved table order, and after each fetch/copy run ADE checkin and savetrans before continuing. Stop on conflict or unresolved merge marker with CODEX_TRIGGER_STATUS: needs-input and a concise reply-user request for merge-conflict input; also stop on checkin failure or save failure. Submit OraReview only after all fetches/copies are checked in and saved, perform Silver bug closure/BugSmart update, run HCM bug validation and supported field fixes with rerun, wait for OraReview approval, run PMC, proceed only if clean or accepted JUnit-only failure, then submit MergeReq. Target Silver series is FUSIONAPPS_PT.V2MIBHCMSILVER_LINUX.X64. Runtime prompts inject the detailed reusable guidance from runner_common/silver_merge_workflow.py.",
+      "operations": [
+        {
+          "id": "silver-merge",
+          "name": "Silver Merge",
+          "description": "Validate ADE Bronze bugs and prepare the approval-gated Silver merge sequence.",
+          "fields": [
+            "silverMergeNote",
+            "bronzeBugs",
+            "silverBugNumber",
+            "details"
+          ],
+          "requiredFields": [
+            "bronzeBugs"
+          ],
+          "titleField": "bronzeBugs"
+        }
+      ]
+    },
+    {
       "id": "custom",
       "name": "Custom Commands",
       "kind": "Command Catalog",

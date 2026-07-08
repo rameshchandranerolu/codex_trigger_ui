@@ -172,6 +172,29 @@ button {
   line-height: 1.45;
 }
 
+.workflow-note {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid #ead7a0;
+  border-left: 4px solid #d8a23a;
+  border-radius: 8px;
+  background: #fff8e5;
+}
+
+.workflow-note strong {
+  color: var(--warn);
+  font-size: 12px;
+}
+
+.workflow-note span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .lookup-values-grid {
   display: grid;
   gap: 8px;

@@ -6,6 +6,7 @@
       "workflows": [
         "custom",
         "alm-backport",
+        "silver-merge",
         "seeddata"
       ],
       "ui_group": "BugDB",
@@ -176,8 +177,27 @@
         {
           "name": "source",
           "label": "Source bug / transaction / MR",
-          "required": true,
+          "required": false,
           "pattern": "^[\\s\\S]+$"
+        },
+        {
+          "name": "managers",
+          "label": "Managers",
+          "required": false,
+          "pattern": "^[\\s\\S]*$"
+        },
+        {
+          "name": "reportees",
+          "label": "Reportees",
+          "required": false,
+          "pattern": "^[\\s\\S]*$"
+        },
+        {
+          "name": "days",
+          "label": "Days",
+          "required": false,
+          "default": "90",
+          "pattern": "^[0-9]+$"
         },
         {
           "name": "base_release_year",
@@ -249,18 +269,48 @@
       ],
       "runner_execution": {
         "enabled": true,
-        "summary": "Run the repo-common Backport Check analyzer outside Codex and write compact JSON plus full diff artifacts.",
+        "summary": "Run the repo-common Backport Check analyzer outside Codex and write a readable summary plus JSON and full diff artifacts.",
         "commands": [
           {
             "label": "Run Backport Check analyzer",
             "timeout_seconds": 900,
             "argv": [
               "python3",
-              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/backport_check.py",
+              "__RUNNER_APP_ROOT__/runner_common/backport_check.py",
               "--source-type",
               "{{source_type}}",
-              "--source",
-              "{{source}}",
+              {
+                "when_param": "source",
+                "value": "--source"
+              },
+              {
+                "when_param": "source",
+                "value": "{{source}}"
+              },
+              {
+                "when_param": "managers",
+                "value": "--managers"
+              },
+              {
+                "when_param": "managers",
+                "value": "{{managers}}"
+              },
+              {
+                "when_param": "reportees",
+                "value": "--reportees"
+              },
+              {
+                "when_param": "reportees",
+                "value": "{{reportees}}"
+              },
+              {
+                "when_param": "days",
+                "value": "--days"
+              },
+              {
+                "when_param": "days",
+                "value": "{{days}}"
+              },
               {
                 "when_param": "base_release_year",
                 "value": "--base-release-year"
@@ -304,6 +354,7 @@
       "workflows": [
         "ade",
         "seeddata",
+        "silver-merge",
         "alm-backport"
       ],
       "order": 10,
@@ -709,6 +760,7 @@
       "label": "Create OraReview",
       "workflows": [
         "ade",
+        "silver-merge",
         "alm-backport"
       ],
       "order": 70,
@@ -776,6 +828,7 @@
         "ade",
         "custom",
         "seeddata",
+        "silver-merge",
         "alm-backport"
       ],
       "order": 75,
@@ -1034,6 +1087,7 @@
       "workflows": [
         "ade",
         "custom",
+        "silver-merge",
         "seeddata"
       ],
       "order": 78,
@@ -1140,6 +1194,7 @@
       "workflows": [
         "ade",
         "custom",
+        "silver-merge",
         "seeddata"
       ],
       "order": 80,

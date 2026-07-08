@@ -225,6 +225,26 @@
       taskLabel: "Bypass reason",
       conditional: "backportCheckBypass"
     },
+    silverMergeNote: {
+      id: "silverMergeNote",
+      label: "Note",
+      type: "note",
+      text: "Only ADE Bronze bugs should be provided. Do not enter VB/ALM bugs."
+    },
+    bronzeBugs: {
+      id: "bronzeBugsInput",
+      label: "Bronze bugs",
+      type: "textarea",
+      rows: 4,
+      placeholder: "38831761, 38831762",
+      taskLabel: "Bronze bugs"
+    },
+    silverBugNumber: {
+      id: "silverBugNumberInput",
+      label: "Silver bug number",
+      placeholder: "Optional",
+      taskLabel: "Silver bug number"
+    },
     baseBugNumber: {
       id: "baseBugNumberInput",
       label: "Base bug number",
@@ -1367,6 +1387,14 @@
     if (spec.type === "lookupRows") {
       return lookupRowsHtml(fieldAttrs);
     }
+    if (spec.type === "note") {
+      return [
+        '<div class="workflow-note"' + fieldAttrs + '>',
+        "<strong>" + escapeHtml(spec.label || "Note") + "</strong>",
+        "<span>" + escapeHtml(spec.text || "") + "</span>",
+        "</div>"
+      ].join("");
+    }
     if (spec.type === "select") {
       return [
         '<label class="field"' + fieldAttrs + '>',
@@ -1890,6 +1918,9 @@
       if (fieldName === "details") {
         return;
       }
+      if (fieldSpecs[fieldName] && fieldSpecs[fieldName].type === "note") {
+        return;
+      }
       if (workflow && workflow.id === "alm-backport" && (fieldName === "releaseYear" || fieldName === "releaseMonth")) {
         return;
       }
@@ -2197,6 +2228,11 @@
       return;
     }
 
+    if (workflow.id === "silver-merge") {
+      validateSilverMergeInputs();
+      return;
+    }
+
     if (workflow.id === "seeddata") {
       var seedType = inputValue("seedDataType").trim();
       if (["Profile Option", "Message", "Lookup", "Value Set"].indexOf(seedType) === -1) {
@@ -2349,6 +2385,27 @@
     }
     if (["01", "04", "07", "10"].indexOf(inputValue("backportCheckTargetReleaseMonth")) === -1) {
       throw new Error("Target release month must be 01, 04, 07, or 10.");
+    }
+  }
+
+  function validateSilverMergeInputs() {
+    var text = inputValue("bronzeBugs").trim();
+    if (!text) {
+      throw new Error("Enter Bronze bugs.");
+    }
+    var parts = text.split(",");
+    parts.forEach(function (part) {
+      var bug = part.trim();
+      if (!bug) {
+        throw new Error("Bronze bugs must be comma-separated bug numbers.");
+      }
+      if (!/^[0-9]+$/.test(bug)) {
+        throw new Error("Bronze bugs must contain digits only.");
+      }
+    });
+    var silverBug = inputValue("silverBugNumber").trim();
+    if (silverBug && !/^[0-9]+$/.test(silverBug)) {
+      throw new Error("Silver bug number must contain digits only.");
     }
   }
 
