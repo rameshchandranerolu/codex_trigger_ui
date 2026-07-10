@@ -56,7 +56,7 @@
         id: "gpt-5.5-priority",
         label: "GPT-5.5 Priority",
         model: "gpt-5.5",
-        reasoningEffort: "xhigh",
+        reasoningEffort: "high",
         serviceTier: "priority"
       }
     ],
