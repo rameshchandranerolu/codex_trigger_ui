@@ -871,12 +871,12 @@
           "For product_id 2419, Fix ETA maps to fixeta; write it in DD-MON-YYYY format such as 12-JUN-2026 because ISO date strings can fail with ORA-01861 even though readback displays ISO format. Bug Fix By maps to fixby, Component Version maps to component_version, and Platform (O/S) maps to product_line_id; when validation expects 226, write product_line_id=226 and verify BugDB readback shows os=226 before rerunning validation.",
           "Bug Type (FusionApps) is a tracking group, not a bug header field, and dev-bugdb-helper bugsmart-closure only posts the closure template comment; it does not update tracking group data.",
           "When using dev-bugdb-helper for field updates, use supported syntax only: bug-update <rptno> --payload-file <json> for header fields, bug-update-transactions <rptno> --payload-file <json> for transaction or tracking-group fields, or raw <METHOD> <path> with --data-json/--payload-json and no trailing bug id. The helper does not support --set or --tg flags; construct a JSON payload file from current readback plus only the approved overrides, then pass that file with --payload-file. For FusionApps tracking-group updates, put the tg array in that JSON payload, for example {\"reassign_bug\":\"N\",\"tg\":[{\"tg_id\":2963,\"tg_operation\":\"C\",\"tg_new_value\":\"Backport\"}]}. Never append an extra bug number after a raw path.",
-          "For a normal HCM defect/code-fix bug, set Bug Type (FusionApps) to Defect with dev-bugdb-helper bug-update-transactions, preserving required header fields and including reassign_bug=N plus tg=[{tg_id:2963,tg_operation:C,tg_new_value:Defect}]. Use Tracking, Fwd Port, or Backport only when the workflow explicitly calls for that type.",
+          "If HCM bug validation reports Bug Type (FusionApps) missing or Undefined, choose the tracking-group value from the target series/workflow: Bronze or current-codeline bugs use Tracking; Silver bugs use Fwd Port; ADE/VB release backport workflow bugs use Backport. Update it with dev-bugdb-helper bug-update-transactions, preserving required header fields and including reassign_bug=N plus tg=[{tg_id:2963,tg_operation:C,tg_new_value:<Tracking|Fwd Port|Backport>}]. Do not use Defect for HCM Bronze/Silver validation repairs.",
           "For an ADE backport validation customer mismatch, keep the backport bug customer as INTERNAL -- FUSIONAPPS and align the base bug customer to the backport bug customer when the requester has approved this cleanup.",
           "For an ADE backport validation duplicate-release error caused by an earlier discarded backport bug, update only the discarded stale bug so it is no longer an active candidate for the target release, then rerun validation for the fresh transaction.",
           "When HCM bug validation reports tag mismatch and says BVT is enabled for the product/label series, do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, or other BVT evidence tags manually. Run /net/phoenix851379.appsdev.fusionappsdphx1.oraclevcn.com/scratch/share/tools/pmg_validate from inside the confirmed ADE view instead. Before invoking it, verify /scratch/tmp exists and is writable because the script writes logs there, and verify sqlplus works in the loaded ADE view; use the existing Oracle client fallback if sqlplus is missing or cannot load libraries. Capture pmg_validate output, accept PREMERGE_BVT_PASS or PREMERGE_FAST_TRACK only after the script/tool creates or validates that evidence, then rerun this hcm.bug-validation command.",
           "If BugDB MCP add_tracking_group_data_to_bug returns Unknown tracking group name for Bug Type (FusionApps), use the bug-update-transactions path instead of asking for manual input.",
-          "Verify BugDB audit/readback after updates, including CHG: Fix ETA->... and CHG: Bug Type (FusionApps)->Defect when applicable.",
+          "Verify BugDB audit/readback after updates, including CHG: Fix ETA->..., CHG: Bug Type (FusionApps)->Tracking for Bronze/current-codeline, or CHG: Bug Type (FusionApps)->Fwd Port for Silver when applicable.",
           "After applying explicit BugDB follow-up instructions, rerun validation and keep gating until exit code 0 plus standalone PASS."
         ]
       },
@@ -1622,12 +1622,14 @@
         "parameter_hints": [
           "Extract exactly one BugDB bug number.",
           "Use the supplied functional summary, testing recommendation, and technical summary as the closure template fields.",
-          "If the closure text is missing, ask for the missing fields instead of inventing them."
+          "If functional or technical summary is missing, derive a concise default from the BugDB issue, issue title/header, task text, or description already in context.",
+          "If testing recommendations are missing, default them to: Re test bug scenario."
         ]
       },
       "instructions": [
         "BugSmart closure posts the Fusion HCM closure template comment through dev-bugdb-helper bugsmart-closure.",
-        "This command is deterministic only when the three closure text fields are supplied by the requester or by prior approved context.",
+        "Functional and technical summary should be populated by default from supplied fields, BugDB issue context, issue title/header, task text, or description already in context.",
+        "Testing recommendations should default to Re test bug scenario when no requester-provided testing text is available.",
         "The helper does not update Bug Type (FusionApps); handle tracking group updates separately when validation requires them."
       ],
       "parameters": [
@@ -1693,7 +1695,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh\"\nBUG=\"{{bug}}\"\nFUNCTIONAL_SUMMARY=\"{{functional_summary}}\"\nREPRO_TESTING_RECOMMENDATIONS=\"{{repro_testing_recommendations}}\"\nTECHNICAL_SUMMARY=\"{{technical_summary}}\"\nDESCRIPTION=\"{{description}}\"\nif [ -z \"$FUNCTIONAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  FUNCTIONAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$REPRO_TESTING_RECOMMENDATIONS\" ]; then\n  REPRO_TESTING_RECOMMENDATIONS=\"Run HCM bug validation and BVT/premerge PMG validation for this backport transaction.\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ]; then\n  TECHNICAL_SUMMARY=\"$FUNCTIONAL_SUMMARY\"\nfi\nif [ -z \"$FUNCTIONAL_SUMMARY\" ]; then\n  echo \"Missing BugSmart functional_summary or description.\" >&2\n  exit 2\nfi\nexec \"$BUGDB\" --compact bugsmart-closure \"$BUG\" --functional-summary \"$FUNCTIONAL_SUMMARY\" --repro-testing-recommendations \"$REPRO_TESTING_RECOMMENDATIONS\" --technical-summary \"$TECHNICAL_SUMMARY\" --non-interactive --yes"
+              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh\"\nBUG=\"{{bug}}\"\nFUNCTIONAL_SUMMARY=\"{{functional_summary}}\"\nREPRO_TESTING_RECOMMENDATIONS=\"{{repro_testing_recommendations}}\"\nTECHNICAL_SUMMARY=\"{{technical_summary}}\"\nDESCRIPTION=\"{{description}}\"\nif [ -z \"$FUNCTIONAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  FUNCTIONAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$FUNCTIONAL_SUMMARY\" ]; then\n  FUNCTIONAL_SUMMARY=\"Address bug $BUG based on the BugDB issue context and requested fix.\"\nfi\nif [ -z \"$REPRO_TESTING_RECOMMENDATIONS\" ]; then\n  REPRO_TESTING_RECOMMENDATIONS=\"Re test bug scenario\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  TECHNICAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ]; then\n  TECHNICAL_SUMMARY=\"$FUNCTIONAL_SUMMARY\"\nfi\nexec \"$BUGDB\" --compact bugsmart-closure \"$BUG\" --functional-summary \"$FUNCTIONAL_SUMMARY\" --repro-testing-recommendations \"$REPRO_TESTING_RECOMMENDATIONS\" --technical-summary \"$TECHNICAL_SUMMARY\" --non-interactive --yes"
             ]
           }
         ]
