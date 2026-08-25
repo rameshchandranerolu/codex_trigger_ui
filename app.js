@@ -72,7 +72,7 @@
           {
             id: "run-action",
             name: "Run ADE Action",
-            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands", "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl", "adeBackport", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeBugSubject", "details"],
+            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands", "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl", "adeBackport", "adePrearu", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeBugSubject", "details"],
             requiredFields: ["adeAction"],
             titleField: "adeAction"
           }
@@ -238,6 +238,15 @@
       defaultValue: "N",
       taskLabel: "Backport",
       conditional: "adeActionSetup"
+    },
+    adePrearu: {
+      id: "adePrearuInput",
+      label: "Is this a PREARU release?",
+      type: "select",
+      options: ["N", "Y"],
+      defaultValue: "N",
+      taskLabel: "PREARU release",
+      conditional: "adeActionBackport"
     },
     adeTier: {
       id: "adeTierInput",
@@ -2254,7 +2263,7 @@
       ["manual_prompts", "adeManualPrompts"], ["custom_commands", "adeCustomCommands"],
       ["transaction_description", "adeTransactionDescription"],
       ["bip_operation", "adeBipOperation"], ["bip_item", "adeBipItem"], ["bip_url", "adeBipUrl"],
-      ["backport", "adeBackport"],
+      ["backport", "adeBackport"], ["prearu", "adePrearu"],
       ["tier", "adeTier"], ["release_year", "adeReleaseYear"], ["release_month", "adeReleaseMonth"],
       ["bronze_bug", "adeBronzeBug"], ["readme", "adeReadme"], ["explanation", "adeExplanation"],
       ["create_view", "adeCreateView"], ["existing_view", "adeExistingView"],
@@ -2612,6 +2621,9 @@
     var backport = inputValue("adeBackport") === "Y";
     var tier = inputValue("adeTier") || "Bronze";
     if (backport) {
+      if (["N", "Y"].indexOf(inputValue("adePrearu")) === -1) {
+        throw new Error("Select whether this is a PREARU release.");
+      }
       if (!/^[0-9]{2}$/.test(inputValue("adeReleaseYear"))) {
         throw new Error("Release year must contain two digits.");
       }

@@ -214,7 +214,7 @@
           "fields": [
             "adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands",
             "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl",
-            "adeBackport", "adeTier", "adeReleaseYear",
+            "adeBackport", "adePrearu", "adeTier", "adeReleaseYear",
             "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation",
             "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug",
             "adeBugSubject", "details"
