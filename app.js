@@ -26,13 +26,15 @@
           id: "current",
           name: "Current VM",
           owner: "rameshchandranerolu",
-          repo: "codex_automation"
+          repo: "codex_automation",
+          adeViews: ["rnerolu_v_bug_39910914_2610"]
         },
         {
           id: "mumbai619658",
           name: "Mumbai 619658",
           owner: "rameshchandranerolu",
-          repo: "codex_automation_mumbai619658"
+          repo: "codex_automation_mumbai619658",
+          adeViews: ["rnerolu_TempBronze2", "rnerolu_v_bug_39904863_bronze"]
         },
         {
           id: "rag-current",
@@ -254,7 +256,7 @@
     adeReadme: { id: "adeReadmeInput", label: "README_BUGFIX_FUNCT_DESC", type: "textarea", rows: 3, taskLabel: "README_BUGFIX_FUNCT_DESC", conditional: "adeActionBackport" },
     adeExplanation: { id: "adeExplanationInput", label: "BugSmart functional/technical explanation", type: "textarea", rows: 3, taskLabel: "Explanation", conditional: "adeActionNonBackport" },
     adeCreateView: { id: "adeCreateViewInput", label: "Create a new ADE view?", type: "select", options: ["Y", "N"], defaultValue: "Y", taskLabel: "Create view", conditional: "adeActionSetup" },
-    adeExistingView: { id: "adeExistingViewInput", label: "Existing ADE view name", taskLabel: "Existing view", conditional: "adeActionExistingView" },
+    adeExistingView: { id: "adeExistingViewInput", label: "Existing ADE view name", type: "combobox", options: [], taskLabel: "Existing view", conditional: "adeActionExistingView" },
     adeCreateBug: { id: "adeCreateBugInput", label: "Create a new BugDB bug?", type: "select", options: ["Y", "N"], defaultValue: "Y", taskLabel: "Create bug", conditional: "adeActionSetup" },
     adeExistingBug: { id: "adeExistingBugInput", label: "Existing BugDB bug number", taskLabel: "Existing bug", conditional: "adeActionExistingBug" },
     adeBugSubject: { id: "adeBugSubjectInput", label: "Bug subject", type: "textarea", rows: 2, taskLabel: "Bug subject", conditional: "adeActionBugSubject" },
@@ -616,6 +618,8 @@
     adeView: {
       id: "adeViewInput",
       label: "ADE view name",
+      type: "combobox",
+      options: [],
       placeholder: "my_view_name",
       taskLabel: "ADE view name"
     },
@@ -1066,7 +1070,8 @@
         owner: String(runner.owner || github.owner || ""),
         repo: String(runner.repo || github.repo || ""),
         description: String(runner.description || ""),
-        workflowIds: Array.isArray(runner.workflowIds) ? runner.workflowIds.map(String) : []
+        workflowIds: Array.isArray(runner.workflowIds) ? runner.workflowIds.map(String) : [],
+        adeViews: Array.isArray(runner.adeViews) ? runner.adeViews.map(String) : []
       };
     });
   }
@@ -1191,6 +1196,14 @@
     if (force || !els.repoInput.value.trim()) {
       els.repoInput.value = runner.repo;
     }
+    var adeViews = Array.isArray(runner.adeViews) ? runner.adeViews.filter(function (view) {
+      return /^[A-Za-z0-9_.-]+$/.test(String(view || ""));
+    }) : [];
+    ["adeView", "adeExistingView"].forEach(function (fieldName) {
+      if (!fieldSpecs[fieldName]) { return; }
+      fieldSpecs[fieldName].options = adeViews.slice();
+      fieldSpecs[fieldName].defaultValue = adeViews.length ? adeViews[0] : "";
+    });
   }
 
   function setStatus(text, className) {
@@ -1571,6 +1584,20 @@
           return '<option value="' + escapeHtml(option) + '">' + escapeHtml(option) + "</option>";
         }).join(""),
         "</select>",
+        "</label>"
+      ].join("");
+    }
+    if (spec.type === "combobox") {
+      var listId = spec.id + "Options";
+      return [
+        '<label class="field"' + fieldAttrs + '>',
+        "<span>" + escapeHtml(spec.label) + "</span>",
+        '<input id="' + spec.id + '" autocomplete="off" spellcheck="false" list="' + escapeHtml(listId) + '" placeholder="' + escapeHtml(spec.placeholder || "") + '" value="' + escapeHtml(spec.defaultValue || "") + '">',
+        '<datalist id="' + escapeHtml(listId) + '">',
+        (spec.options || []).map(function (option) {
+          return '<option value="' + escapeHtml(option) + '"></option>';
+        }).join(""),
+        "</datalist>",
         "</label>"
       ].join("");
     }

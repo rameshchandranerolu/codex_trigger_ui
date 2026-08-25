@@ -9,7 +9,10 @@
         "name": "Current VM",
         "owner": "rameshchandranerolu",
         "repo": "codex_automation",
-        "description": "Current runner VM"
+        "description": "Current runner VM",
+        "adeViews": [
+          "rnerolu_v_bug_39910914_2610"
+        ]
       },
       {
         "id": "rag-current",
@@ -26,7 +29,11 @@
         "name": "Mumbai 619658",
         "owner": "rameshchandranerolu",
         "repo": "codex_automation_mumbai619658",
-        "description": "Second runner VM"
+        "description": "Second runner VM",
+        "adeViews": [
+          "rnerolu_TempBronze2",
+          "rnerolu_v_bug_39904863_bronze"
+        ]
       }
     ]
   },
