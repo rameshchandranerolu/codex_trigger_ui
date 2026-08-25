@@ -37,7 +37,8 @@ The UI is workflow-first. `ADE Actions` renders the same conditional inputs as
 the terminal `run_ade_action.sh` menu and generates a validated
 `ade.run-action-workflow` command. Structured requests execute deterministically
 in the private parent runner; the model is reserved for free-form parsing and
-response wording. Other BugDB and ADE requests can still use `Workflow: custom`.
+response wording. The BIP option defaults to export and uses the shared Workflow
+Notifications mapping. Other BugDB and ADE requests can still use `Workflow: custom`.
 `Project:` is generated for workflows that require a selected local context.
 `commands.json` drives optional structured command entries that the private
 runner validates before execution.

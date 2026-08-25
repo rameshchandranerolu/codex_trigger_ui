@@ -202,10 +202,10 @@
       "id": "ade-actions",
       "name": "ADE Actions",
       "kind": "ADE",
-      "description": "Run the same MergeReq, refresh, merge, Custom ADE, OraReview, cleanview, PMC, and transaction-setup flow available in run_ade_action.sh.",
+      "description": "Run the same MergeReq, refresh, merge, Custom ADE, OraReview, cleanview, PMC, transaction-setup, and mapped BIP import/export flow available in run_ade_action.sh.",
       "requiresProject": true,
       "projectAliases": ["codex-automation"],
-      "context": "Structured ADE Actions workflow. The submitted form is the approval boundary. Validated inputs execute deterministically through ade.run-action-workflow and runner_common/scripts/ade-scripts/run_ade_action_workflow.py, which invokes /home/<runner-user>/run_ade_action.sh and supplies the same answers used by its terminal prompts. Codex is used only to parse unstructured user follow-ups or compose a response. Always return created bug, view, and transaction identifiers and retain them for later follow-ups.",
+      "context": "Structured ADE Actions workflow. The submitted form is the approval boundary. Validated inputs execute deterministically through ade.run-action-workflow and runner_common/scripts/ade-scripts/run_ade_action_workflow.py, which invokes /home/<runner-user>/run_ade_action.sh and supplies the same answers used by its terminal prompts. Codex is used only to parse unstructured user follow-ups or compose a response. Always return created bug, view, transaction, and BIP operation/item values and retain them for later follow-ups.",
       "operations": [
         {
           "id": "run-action",
@@ -213,7 +213,8 @@
           "description": "Select one terminal action and provide its dependent answers.",
           "fields": [
             "adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands",
-            "adeTransactionDescription", "adeBackport", "adeTier", "adeReleaseYear",
+            "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl",
+            "adeBackport", "adeTier", "adeReleaseYear",
             "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation",
             "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug",
             "adeBugSubject", "details"

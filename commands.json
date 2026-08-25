@@ -10,15 +10,18 @@
       "template": "ade action={{action}} view={{view}} bug={{bug}}",
       "instructions": [
         "Use the shared ADE Actions workflow form and execute the existing run_ade_action.sh processing through the parent runner adapter.",
-        "Return any created bug, view, and transaction identifiers for follow-up use."
+        "Return any created bug, view, transaction, and BIP operation/item values for follow-up use."
       ],
       "parameters": [
-        {"name": "action", "label": "Action", "required": true, "options": ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction"]},
+        {"name": "action", "label": "Action", "required": true, "options": ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export"]},
         {"name": "view", "label": "ADE view", "required": false, "pattern": "^[A-Za-z0-9_.-]+$", "sequence_ref": true},
         {"name": "bug", "label": "Bug number", "required": false, "pattern": "^[0-9]{7,10}$", "sequence_ref": true},
         {"name": "manual_prompts", "required": false, "default": "N", "options": ["N", "Y"]},
         {"name": "custom_commands", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
         {"name": "transaction_description", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
+        {"name": "bip_operation", "required": false, "default": "export", "options": ["export", "import"]},
+        {"name": "bip_item", "required": false, "options": ["LocalAndGlobalTransferPostApproval", "LocalAndGlobalTransfer", "ManageContracts", "ManageContractsPostApproval", "EmploymentCreateProcesses", "ChangeWorkerType", "ChangeWorkerTypePostApproval", "AdditionalAssignmentInfo", "AdditionalAssignmentInfoPostApproval", "LocalAndGlobalTransferReport", "LocalAndGlobalTransferReportPostApproval", "ManageAssignmentEFFReport", "ManageAssignmentEFFReportPostApproval", "ManageContractsReport", "ManageContractsReportPostApproval", "ChangeWorkerTypeReport", "ChangeWorkerTypeReportPostApproval", "AddAssignmentReport"]},
+        {"name": "bip_url", "required": false, "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/\\S*)?$"},
         {"name": "backport", "required": false, "default": "N", "options": ["N", "Y"]},
         {"name": "tier", "required": false, "default": "Bronze", "options": ["Bronze", "Silver"]},
         {"name": "release_year", "required": false, "pattern": "^[0-9]{2}$"},
@@ -35,7 +38,9 @@
       "outputs": {
         "bug": {"patterns": ["\\\"bug\\\"\\s*:\\s*\\\"([0-9]{7,10})\\\""]},
         "view": {"patterns": ["\\\"view\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]},
-        "transaction": {"patterns": ["\\\"transaction\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]}
+        "transaction": {"patterns": ["\\\"transaction\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]},
+        "bip_operation": {"patterns": ["\\\"bip_operation\\\"\\s*:\\s*\\\"(export|import)\\\""]},
+        "bip_item": {"patterns": ["\\\"bip_item\\\"\\s*:\\s*\\\"([A-Za-z0-9]+)\\\""]}
       }
     },
     {

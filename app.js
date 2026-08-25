@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260825-ade-actions-workflow";
+  var ASSET_VERSION = "20260825-bip-import-export";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -72,7 +72,7 @@
           {
             id: "run-action",
             name: "Run ADE Action",
-            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands", "adeTransactionDescription", "adeBackport", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeBugSubject", "details"],
+            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands", "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl", "adeBackport", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeBugSubject", "details"],
             requiredFields: ["adeAction"],
             titleField: "adeAction"
           }
@@ -162,7 +162,7 @@
       id: "adeActionInput",
       label: "Action",
       type: "select",
-      options: ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction"],
+      options: ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export"],
       defaultValue: "refreshview",
       taskLabel: "Action"
     },
@@ -205,6 +205,30 @@
       rows: 3,
       taskLabel: "Transaction description",
       conditional: "adeActionOraReview"
+    },
+    adeBipOperation: {
+      id: "adeBipOperationInput",
+      label: "BIP operation",
+      type: "select",
+      options: ["export", "import"],
+      defaultValue: "export",
+      taskLabel: "BIP operation",
+      conditional: "adeActionBip"
+    },
+    adeBipItem: {
+      id: "adeBipItemInput",
+      label: "BIP data model or report",
+      type: "select",
+      options: ["LocalAndGlobalTransferPostApproval", "LocalAndGlobalTransfer", "ManageContracts", "ManageContractsPostApproval", "EmploymentCreateProcesses", "ChangeWorkerType", "ChangeWorkerTypePostApproval", "AdditionalAssignmentInfo", "AdditionalAssignmentInfoPostApproval", "LocalAndGlobalTransferReport", "LocalAndGlobalTransferReportPostApproval", "ManageAssignmentEFFReport", "ManageAssignmentEFFReportPostApproval", "ManageContractsReport", "ManageContractsReportPostApproval", "ChangeWorkerTypeReport", "ChangeWorkerTypeReportPostApproval", "AddAssignmentReport"],
+      taskLabel: "BIP item",
+      conditional: "adeActionBip"
+    },
+    adeBipUrl: {
+      id: "adeBipUrlInput",
+      label: "Environment URL",
+      placeholder: "https://cptcvxzqy.fusionapps.ocs.oc-test.com/",
+      taskLabel: "Environment URL",
+      conditional: "adeActionBip"
     },
     adeBackport: {
       id: "adeBackportInput",
@@ -1456,6 +1480,7 @@
     if (conditional === "adeActionMergereq") { return action === "mergereq"; }
     if (conditional === "adeActionCustom") { return action === "customade"; }
     if (conditional === "adeActionOraReview") { return action === "submit_orareview"; }
+    if (conditional === "adeActionBip") { return action === "bip_import_export"; }
     if (conditional === "adeActionSetup") { return setup; }
     if (conditional === "adeActionTier") { return setup && !backport; }
     if (conditional === "adeActionBackport") { return setup && backport; }
@@ -2208,7 +2233,9 @@
     var mappings = [
       ["action", "adeAction"], ["view", "adeView"], ["bug", "adeBug"],
       ["manual_prompts", "adeManualPrompts"], ["custom_commands", "adeCustomCommands"],
-      ["transaction_description", "adeTransactionDescription"], ["backport", "adeBackport"],
+      ["transaction_description", "adeTransactionDescription"],
+      ["bip_operation", "adeBipOperation"], ["bip_item", "adeBipItem"], ["bip_url", "adeBipUrl"],
+      ["backport", "adeBackport"],
       ["tier", "adeTier"], ["release_year", "adeReleaseYear"], ["release_month", "adeReleaseMonth"],
       ["bronze_bug", "adeBronzeBug"], ["readme", "adeReadme"], ["explanation", "adeExplanation"],
       ["create_view", "adeCreateView"], ["existing_view", "adeExistingView"],
@@ -2533,7 +2560,7 @@
 
   function validateAdeActionInputs() {
     var action = inputValue("adeAction");
-    var actions = ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction"];
+    var actions = ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export"];
     if (actions.indexOf(action) === -1) {
       throw new Error("Select a valid ADE action.");
     }
@@ -2548,6 +2575,17 @@
     }
     if (action === "submit_orareview" && !inputValue("adeTransactionDescription")) {
       throw new Error("Enter Transaction description.");
+    }
+    if (action === "bip_import_export") {
+      if (["export", "import"].indexOf(inputValue("adeBipOperation")) === -1) {
+        throw new Error("Select export or import.");
+      }
+      if (!inputValue("adeBipItem")) {
+        throw new Error("Select a BIP data model or report.");
+      }
+      if (!/^https:\/\/[A-Za-z0-9.-]+(?::[0-9]+)?(?:\/\S*)?$/.test(inputValue("adeBipUrl"))) {
+        throw new Error("Enter a valid HTTPS environment URL.");
+      }
     }
     if (action !== "setup_transaction") {
       return;
