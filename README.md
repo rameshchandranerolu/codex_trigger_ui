@@ -22,7 +22,7 @@ still enough for the VM runner to pick up the trigger after the runner update is
 deployed.
 
 The Model selector writes `Codex-Model: <preset-id>` into the issue body. The
-default `cheap-default` preset keeps the current low-cost runner settings, while
+default `cheap-default` preset uses GPT-5.6 Luna with medium reasoning and the current instant service tier, while
 `gpt-5.5-priority` is an explicit Pro preset for difficult debugging or code
 logic checks.
 
@@ -33,10 +33,13 @@ the GitHub API and does not ask users to paste a token.
 Before making this repo public, review `projects.json` and keep workflow names,
 project aliases, and descriptions non-sensitive.
 
-The UI is workflow-first. BugDB and ADE requests are submitted through
-`Workflow: custom` with a selected run project, so they can be typed naturally
-in the Additional inputs box. `Project:` is generated for workflows that require
-a selected local context. `commands.json` drives optional structured command
-entries that the private runner validates before execution.
+The UI is workflow-first. `ADE Actions` renders the same conditional inputs as
+the terminal `run_ade_action.sh` menu and generates a validated
+`ade.run-action-workflow` command. Structured requests execute deterministically
+in the private parent runner; the model is reserved for free-form parsing and
+response wording. Other BugDB and ADE requests can still use `Workflow: custom`.
+`Project:` is generated for workflows that require a selected local context.
+`commands.json` drives optional structured command entries that the private
+runner validates before execution.
 Keep the private runner repo's `config.json` mapped with matching workflows and
 run-project aliases before using newly added workflow buttons.

@@ -1,6 +1,44 @@
 {
   "commands": [
     {
+      "id": "ade.run-action-workflow",
+      "label": "Run ADE Action Workflow",
+      "workflows": ["ade-actions"],
+      "ui_group": "ADE",
+      "runner_safe": true,
+      "order": 5,
+      "template": "ade action={{action}} view={{view}} bug={{bug}}",
+      "instructions": [
+        "Use the shared ADE Actions workflow form and execute the existing run_ade_action.sh processing through the parent runner adapter.",
+        "Return any created bug, view, and transaction identifiers for follow-up use."
+      ],
+      "parameters": [
+        {"name": "action", "label": "Action", "required": true, "options": ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction"]},
+        {"name": "view", "label": "ADE view", "required": false, "pattern": "^[A-Za-z0-9_.-]+$", "sequence_ref": true},
+        {"name": "bug", "label": "Bug number", "required": false, "pattern": "^[0-9]{7,10}$", "sequence_ref": true},
+        {"name": "manual_prompts", "required": false, "default": "N", "options": ["N", "Y"]},
+        {"name": "custom_commands", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
+        {"name": "transaction_description", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
+        {"name": "backport", "required": false, "default": "N", "options": ["N", "Y"]},
+        {"name": "tier", "required": false, "default": "Bronze", "options": ["Bronze", "Silver"]},
+        {"name": "release_year", "required": false, "pattern": "^[0-9]{2}$"},
+        {"name": "release_month", "required": false, "pattern": "^(0[1-9]|1[0-2])$"},
+        {"name": "bronze_bug", "required": false, "pattern": "^[0-9]{7,10}$"},
+        {"name": "readme", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
+        {"name": "explanation", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
+        {"name": "create_view", "required": false, "default": "Y", "options": ["Y", "N"]},
+        {"name": "existing_view", "required": false, "pattern": "^[A-Za-z0-9_.-]+$", "sequence_ref": true},
+        {"name": "create_bug", "required": false, "default": "Y", "options": ["Y", "N"]},
+        {"name": "existing_bug", "required": false, "pattern": "^[0-9]{7,10}$", "sequence_ref": true},
+        {"name": "bug_subject", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"}
+      ],
+      "outputs": {
+        "bug": {"patterns": ["\\\"bug\\\"\\s*:\\s*\\\"([0-9]{7,10})\\\""]},
+        "view": {"patterns": ["\\\"view\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]},
+        "transaction": {"patterns": ["\\\"transaction\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]}
+      }
+    },
+    {
       "id": "bugdb.create-bug",
       "label": "Create BugDB Bug",
       "workflows": [
@@ -25,12 +63,14 @@
         "parameter_hints": [
           "Use the provided subject or description as the BugDB subject through the repo-common bugdb_create_bug.py helper.",
           "If base_rptno is supplied, preserve it as the base bug reference.",
+          "For an explicit PRE-ARU child request with Release 11.13.YY.MM, normalize fixby and component_version to 11.13.YY.MM.0 and set bt_tags to REL13PREARU-YYMM FWD.",
           "After creation, later catalog commands may use ${bug} for the created bug number."
         ]
       },
       "instructions": [
         "BugDB bug creation is approved only when the description/subject is explicit.",
         "The parent runner executes runner_common/bugdb_create_bug.py and captures the created bug number as the sequence variable ${bug}.",
+        "For a PRE-ARU child bug, preserve base_rptno, use a concise description such as Porting fix for bug <base bug> to <release>, normalize release 11.13.YY.MM to 11.13.YY.MM.0 for fixby and component_version, and pass bt_tags=REL13PREARU-YYMM FWD.",
         "Downstream commands can use ${bug}, ${bug_ref}, or ${txn} after this command completes."
       ],
       "parameters": [
@@ -66,6 +106,12 @@
           "label": "Component version",
           "required": false,
           "pattern": "^[A-Za-z0-9_.-]+$"
+        },
+        {
+          "name": "bt_tags",
+          "label": "BugDB tags",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_ -]+$"
         }
       ],
       "outputs": {
@@ -126,6 +172,14 @@
               {
                 "when_param": "component_version",
                 "value": "{{component_version}}"
+              },
+              {
+                "when_param": "bt_tags",
+                "value": "--bt-tags"
+              },
+              {
+                "when_param": "bt_tags",
+                "value": "{{bt_tags}}"
               }
             ]
           }
@@ -439,24 +493,43 @@
       ],
       "order": 15,
       "template": "ade begintrans -backport {{bug}} -fromtrans {{from_transaction}} -bl <view-label> {{options}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-handoff",
+        "examples": [
+          "create a PRE-ARU view for a new child bug and fetch the source transaction",
+          "begin an ADE backport transaction from rnerolu_bug-39822256",
+          "create the release view on FUSIONAPPS_PT.V2MIBHCMPREARU132610_LINUX.X64 and fetch the base transaction"
+        ],
+        "parameter_hints": [
+          "Use the new child/backport bug as bug and the merged base-bug transaction as from_transaction.",
+          "Preserve an explicitly supplied ADE series such as FUSIONAPPS_PT.V2MIBHCMPREARU132610_LINUX.X64 exactly.",
+          "When view is omitted, derive <runner-user>_v_bug_<new_bug>_<YYMM> from the new bug and release or branch.",
+          "Use options=-nocheckout unless the requester explicitly supplies a different supported option.",
+          "This parent action creates the missing view, begins the backport transaction, and verifies that the source transaction was fetched before later validation or OraReview steps."
+        ]
+      },
       "parameters": [
         {
           "name": "view",
           "label": "View name",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "bug",
           "label": "Backport bug",
           "required": true,
-          "pattern": "^[0-9]+$"
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
         },
         {
           "name": "from_transaction",
           "label": "Source transaction",
           "required": true,
-          "pattern": "^[A-Za-z0-9_.-]+$"
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
         },
         {
           "name": "branch",
@@ -481,7 +554,8 @@
         "Before this handoff, verify the backport bug's BugDB setup by readback: Generic / Port Specific header field (GOPS, readback key gops) is I / Request For Inclusion; Bug Type (FusionApps) tracking group is Backport; status is 51; customer is INTERNAL -- FUSIONAPPS; and tags include CUSTOMER_IMPACT plus the release bundle tag for the target release, for example REL13BUNDLE-2607-PB8 for 26.07. If HCM bug validation names a different expected REL13BUNDLE tag, use that exact tag.",
         "If ADE reports that the bug is neither a BLR, MLR, CI nor an RFI, do not retry this command unchanged; fix the BugDB GOPS value to I and verify the readback first.",
         "The parent runner creates the ADE view if it is missing, captures the current view label, and runs ade begintrans -backport <backport_bug> -fromtrans <source_user>_bug-<base_bug> -bl <view_label> with any caller-supplied options such as -nocheckout.",
-        "Do not expect the new ADE backport transaction to be named <user>_bug-<bug>; ADE assigns the backport-format transaction name and should automatically fetch/use the source Bronze transaction. After begintrans, discover the actual active transaction from ade pwv/ade_info.vmd; if describetrans shows no backend branched elements and no checked-out files, run ade fetchtrans <source_user>_bug-<base_bug> -ade_merge -nogui from inside the open backport transaction before BVT or OraReview. Use the actual transaction name for settransproperty, save, and OraReview."
+        "For an explicitly requested PRE-ARU series, preserve that exact branch instead of substituting the canonical FusionApps release series. Normalize Release 11.13.YY.MM to BugDB version 11.13.YY.MM.0 and release suffix YYMM; a PRE-ARU child bug uses base_rptno=<base bug> and tags REL13PREARU-YYMM plus FWD.",
+        "Do not expect the new ADE backport transaction to be named <user>_bug-<bug>; ADE assigns the backport-format transaction name. The parent verifies the active transaction and runs the checked-in ensure-grabbed helper so an empty transaction fetches from_transaction with -ade_merge -nogui before validation, README, BVT, or OraReview. Use the actual transaction name for settransproperty, save, and OraReview."
       ],
       "approval": {
         "required": true,
@@ -500,6 +574,18 @@
               "bash",
               "-c",
               "set -euo pipefail\nensure_ade_on_path() {\n  if command -v ade >/dev/null 2>&1; then\n    return 0\n  fi\n  local candidate\n  for candidate in /usr/dev_infra/platform/bin /usr/local/bin /usr/local/ade/bin /ade_autofs/ade_infra/ADE_MAIN_LINUX.rdd/LATEST/nde/ade/bin /ade_autofs/ade_infra/ADE_MAIN_LINUX.X64.rdd/LATEST/nde/ade/bin; do\n    if [ -x \"${candidate}/ade\" ]; then\n      PATH=\"${candidate}:${PATH}\"\n      export PATH\n      return 0\n    fi\n  done\n  return 1\n}\nensure_ade_on_path || { echo \"Required command not found: ade\" >&2; exit 127; }\nview=\"{{view}}\"\nbranch=\"{{branch}}\"\nif [ -n \"$branch\" ]; then\n  branch=\"${branch%/}\"\n  case \"$branch\" in\n    */LATEST) branch=\"${branch%/LATEST}\" ;;\n  esac\n  branch=\"${branch##*/}\"\n  branch=\"${branch%.rdd}\"\n  case \"$branch\" in\n    FUSIONAPPS_*)\n      case \"$branch\" in\n        *_LINUX.X64*) ;;\n        *) branch=\"${branch}_LINUX.X64\" ;;\n      esac\n      ;;\n  esac\nfi\nif [ ! -d \"/ade/$view\" ]; then\n  if [ -z \"$branch\" ]; then\n    echo \"ADE branch is required when creating missing view $view\" >&2\n    exit 2\n  fi\n  echo \"Runner diagnostic: creating missing ADE view $view on $branch\"\n  ade showlabels -series \"$branch\" -latest\n  ade createview -series \"$branch\" -latest \"$view\"\nfi\nexec bash /scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh -view \"$view\" -- '\nset -euo pipefail\nbug=\"{{bug}}\"\nfrom_transaction=\"{{from_transaction}}\"\noptions=\"{{options}}\"\nview_label=\"${ADE_VIEW_LABEL:-}\"\nif [ -z \"$view_label\" ] && [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  view_label=$(sed -n \"s/^VIEW_LABEL[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  view_label=$(ade pwv | sed -n \"s/^VIEW_LABEL[[:space:]]*:[[:space:]]*//p\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -z \"$view_label\" ]; then\n  echo \"Unable to determine ADE view label for backport transaction\" >&2\n  exit 2\nfi\nactive_txn=\"\"\nif [ -n \"${ADE_VIEW_ROOT:-}\" ] && [ -f \"$ADE_VIEW_ROOT/ade_info.vmd\" ]; then\n  active_txn=$(sed -n \"s/^VIEW_\\(TXN\\|TRANS\\)_NAME[[:space:]=:]*//p\" \"$ADE_VIEW_ROOT/ade_info.vmd\" | awk \"NF {print \\$1}\" | tail -1)\nfi\nif [ -n \"$active_txn\" ] && [ \"$active_txn\" != \"NONE\" ]; then\n  echo \"Runner diagnostic: ADE backport transaction is already active: $active_txn\"\n  ade pwv\n  exit 0\nfi\ncd \"$ADE_VIEW_ROOT\"\ncmd=(ade begintrans -backport \"$bug\" -fromtrans \"$from_transaction\" -bl \"$view_label\")\nif [ -n \"$options\" ]; then\n  # shellcheck disable=SC2206\n  extra_options=($options)\n  cmd+=(\"${extra_options[@]}\")\nfi\nprintf \"Runner diagnostic: executing\"\nprintf \" %q\" \"${cmd[@]}\"\nprintf \"\\n\"\n\"${cmd[@]}\"\nade pwv\n'"
+            ]
+          },
+          {
+            "label": "Verify the ADE backport source transaction was fetched",
+            "timeout_seconds": 1800,
+            "argv": [
+              "bash",
+              "__RUNNER_APP_ROOT__/runner_common/scripts/ade-scripts/RunInView.sh",
+              "-view",
+              "{{view}}",
+              "--",
+              "bash __RUNNER_APP_ROOT__/runner_common/scripts/ade-scripts/ade_backport_ensure_grabbed.sh '' '{{from_transaction}}' '{{bug}}'"
             ]
           }
         ]
@@ -544,6 +630,95 @@
       "ui_group": "ADE"
     },
     {
+      "id": "ade.fetch-transaction",
+      "label": "Fetch ADE Transaction",
+      "workflows": [
+        "ade",
+        "custom",
+        "alm-backport",
+        "silver-merge"
+      ],
+      "order": 35,
+      "template": "ade fetchtrans {{source_transaction}} {{options}} in view={{view}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-handoff",
+        "examples": [
+          "fetch transaction from bug 39822256 into the new PRE-ARU view",
+          "fetch rnerolu_bug-39822256 with ade merge into the active target transaction",
+          "bring the base bug transaction into the newly created release view"
+        ],
+        "parameter_hints": [
+          "Resolve a bug-only source to its exact ADE transaction, normally <owner>_bug-<base bug>.",
+          "Use the created target view and, when known, the new child transaction as target_transaction.",
+          "Default options to -ade_merge -nogui.",
+          "The parent verifies source and active target transactions, fetches, checks in fetched files, saves the target transaction, and stops on any conflict or failure."
+        ]
+      },
+      "instructions": [
+        "Use this command for a normal ADE target transaction on an explicitly supplied PRE-ARU integration series. Do not replace that explicit flow with ade.begin-backport-transaction unless the requester actually asked for ADE begintrans -backport/RFI semantics.",
+        "ADE fetchtrans, checkin, and savetrans are state-changing and must run in the parent through the checked-in RunInView.sh and ade_fetch_transaction.sh helpers.",
+        "Verify the source transaction first. The helper refuses a missing target transaction, a source equal to the active target, or a target_transaction mismatch.",
+        "After fetchtrans it checks in any fetched files, saves the active target transaction, and verifies its diff before validation, README, closure, or OraReview."
+      ],
+      "approval": {
+        "required": true,
+        "status": "needs-input",
+        "guidance": "Confirm the exact source transaction, target view/transaction, and fetch options. A direct imperative request may supply that confirmation when the High architect validates the complete bounded catalog plan."
+      },
+      "parameters": [
+        {
+          "name": "view",
+          "label": "Target ADE view",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "source_transaction",
+          "label": "Source ADE transaction",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "target_transaction",
+          "label": "Expected active target transaction",
+          "required": false,
+          "pattern": "^[A-Za-z0-9_.-]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "options",
+          "label": "Fetch options",
+          "required": false,
+          "default": "-ade_merge -nogui",
+          "pattern": "^[-A-Za-z0-9_ .]*$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "allow_approval_required": true,
+        "summary": "Fetch one source transaction into the active target view transaction, then check in and save.",
+        "commands": [
+          {
+            "label": "Fetch, check in, and save the ADE transaction outside Codex",
+            "timeout_seconds": 7200,
+            "argv": [
+              "bash",
+              "__RUNNER_APP_ROOT__/runner_common/scripts/ade-scripts/RunInView.sh",
+              "-view",
+              "{{view}}",
+              "--",
+              "bash __RUNNER_APP_ROOT__/runner_common/scripts/ade-scripts/ade_fetch_transaction.sh --source '{{source_transaction}}' --target '{{target_transaction}}' --options '{{options}}'"
+            ]
+          }
+        ]
+      },
+      "ui_group": "ADE",
+      "runner_safe": true
+    },
+    {
       "id": "ade.status",
       "label": "View Status",
       "workflow": "ade",
@@ -570,7 +745,7 @@
       "template": "ade refreshview -latest view={{view}}",
       "natural_language": {
         "enabled": true,
-        "execution": "confirm-then-handoff",
+        "execution": "direct",
         "examples": [
           "run refreshview for view rnerolu_v_bug_39435490_bronze",
           "refreshview to latest label in rnerolu_v_bug_39435490_bronze",
@@ -579,17 +754,16 @@
         "parameter_hints": [
           "Extract exactly one ADE view name from the request or current resumed issue context.",
           "If the view is missing or ambiguous, ask only for the view with CODEX_TRIGGER_STATUS: needs-input.",
-          "After the requester has approved refreshview and the view is known, do not run refreshview inside Codex; emit CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>."
+          "When the view is known, do not ask for approval and do not run refreshview inside Codex; emit CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>."
         ]
       },
       "approval": {
-        "required": true,
-        "status": "needs-input",
-        "guidance": "Refreshview is a state-changing ADE lifecycle command. Confirm the target view first; after approval, hand off to the parent runner with CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>."
+        "required": false,
+        "guidance": "Refreshview is a low-impact catalog lifecycle action. Once the target view is known, run it without a separate approval prompt."
       },
       "instructions": [
-        "ADE refreshview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>.",
-        "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path and writes per-view refresh logs under /scratch/<user>/codex-refreshview-logs/<view>/.",
+        "ADE refreshview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view, then emit a final standalone handoff line without a separate approval prompt: CODEX_RUNNER_COMMAND: ade.refresh-view view=<viewname>.",
+        "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path and writes per-view refresh logs under /scratch/<user>/codex-refreshview-logs/<view>/. Because the catalog handoff is the approval boundary, the helper must keep refreshview non-interactive and answer ADE's confirmation prompt when the current label is unavailable but the nearest available label sorts lower.",
         "Use at least the standard ADE lifecycle timeout budget; refreshview commonly needs up to 10 minutes.",
         "If refreshview fails with ade_info.vmd.free or another ADE lock, follow ADE persist lock guidance and do not remove ade_locks.wrd automatically."
       ],
@@ -632,7 +806,7 @@
       "template": "ade cleanview view={{view}}",
       "natural_language": {
         "enabled": true,
-        "execution": "confirm-then-handoff",
+        "execution": "direct",
         "examples": [
           "run cleanview for view rnerolu_v_bug_39435490_bronze",
           "cleanview rnerolu_v_bug_39435490_bronze",
@@ -641,16 +815,15 @@
         "parameter_hints": [
           "Extract exactly one ADE view name from the request or current resumed issue context.",
           "If the view is missing or ambiguous, ask only for the view with CODEX_TRIGGER_STATUS: needs-input.",
-          "After the requester has approved cleanview and the view is known, do not run cleanview inside Codex; emit CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>."
+          "When the view is known, do not ask for approval and do not run cleanview inside Codex; emit CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>."
         ]
       },
       "approval": {
-        "required": true,
-        "status": "needs-input",
-        "guidance": "Cleanview is a state-changing ADE lifecycle command. Confirm the target view first; after approval, hand off to the parent runner with CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>."
+        "required": false,
+        "guidance": "Cleanview is a low-impact catalog lifecycle action. Once the target view is known, run it without a separate approval prompt."
       },
       "instructions": [
-        "ADE cleanview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view and approval, then emit a final standalone handoff line: CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>.",
+        "ADE cleanview execution must happen outside the Codex child process. Codex should interpret natural-language requests, verify the target view, then emit a final standalone handoff line without a separate approval prompt: CODEX_RUNNER_COMMAND: ade.clean-view view=<viewname>.",
         "The parent runner executes this command through the repo-common scripts/ade-scripts/RunInView.sh wrapper with the default lightweight FUSIONAPPS_SKIP_FMWC=TRUE path.",
         "Cleanview must be its own parent-runner command. Do not chain commands after cleanview in the same ADE session.",
         "If PMC should run after cleanview, emit a separate later handoff line for CODEX_RUNNER_COMMAND: hcm.pmc bug=<bugid> view=<viewname>; the PMC parent command re-enters with --full-fmwc."
@@ -770,11 +943,26 @@
       "template": "orareview create view={{view}} bug={{bug}} reviewers={{reviewers}}",
       "skill": "orareview",
       "mcp": "orareview",
+      "natural_language": {
+        "enabled": true,
+        "execution": "direct",
+        "examples": [
+          "submit OraReview for the active transaction",
+          "create orareview for the new bug and view",
+          "upload the ADE transaction to OraReview"
+        ],
+        "parameter_hints": [
+          "Use the created bug and its ADE view.",
+          "For backport-format transactions, transaction may be omitted so the parent derives it from the view.",
+          "Use the configured default reviewer file when reviewers are not explicitly supplied."
+        ]
+      },
       "instructions": [
         "Use the orareview skill for upload/update workflow and required preflight checks.",
         "For a first OraReview upload, no existing review is expected. If orareview -x or orareview -t <txn> -x says no review exists, and the approved task is to create OraReview after verifying the ADE view, transaction, saved changes, and reviewers, hand off to the parent runner with CODEX_RUNNER_COMMAND: orareview.create view=<viewname> bug=<bugid> [reviewers=<emails>].",
         "The parent runner uses explicit reviewers when supplied; otherwise it reads /scratch/<USER>/codeshare/ade_defaultreviewers.txt, then legacy /scratch/<USER>/codeshare/defaultreviewers.txt, and stops with CODEX_TRIGGER_STATUS: needs-input if no reviewers are available.",
         "The parent runner uses the installed ADE Lens scripts/ade-scripts/CreateOra.sh helper. The older ~/.codex/skills/ade-lens/scripts/CreateOra.sh path is obsolete in ADE Lens 1.0.7 and newer.",
+        "After CreateOra.sh finishes, the parent runner reads its current CreateOra.out checkpoint log and treats an internal ade refreshview -latest failure as a failed handoff even if the composite helper exits 0 or later creates an OraReview.",
         "Use OraReview MCP tools for read-only review metadata, reviewer status, comments, and merge-check details when helpful."
       ],
       "parameters": [
@@ -797,7 +985,8 @@
           "label": "ADE transaction",
           "required": false,
           "pattern": "^[A-Za-z0-9_.-]+$",
-          "description": "Optional context for backport OraReview handoffs; CreateOra.sh derives the transaction from the view and bug."
+          "description": "Optional context for backport OraReview handoffs; CreateOra.sh derives the transaction from the view and bug.",
+          "sequence_ref": true
         },
         {
           "name": "reviewers",
@@ -838,7 +1027,7 @@
       "template": "\"$HCMDEV_ROOT/bin/hcmbugvalidation\" \"{{validation_ref}}\"",
       "natural_language": {
         "enabled": true,
-        "execution": "confirm-then-handoff",
+        "execution": "direct",
         "examples": [
           "run bug validation for bug 30595896",
           "validate HCM transaction rnerolu_bug-30595896",
@@ -863,20 +1052,22 @@
       "followup_remediation": {
         "summary": "Use the parent-runner BugDB validation-field command for Fix ETA, Fix By, Component Version, and Platform/O/S repairs. Use BugDB MCP for other explicit BugDB updates when available; if MCP lacks field-update support or cannot resolve FusionApps tracking groups, use dev-bugdb-helper for approved field and transaction updates, then rerun the same HCM bug validation command.",
         "instructions": [
-          "For HCM bug validation errors that name missing Bug Fix ETA, wrong Bug Fix By, wrong Component Version, or an incorrect O/S / Platform (O/S), do not hand-write a BugDB update shell. Emit CODEX_RUNNER_COMMAND: bugdb.fix-hcm-validation-fields bug=<bugid> fixeta=<DD-MON-YYYY> fixby=<expected_version> component_version=<expected_version> product_line_id=<expected_os_id>. Omit a field only when validation did not request it. The parent runner builds the required full BugDB header payload, fails on BugDB error JSON, verifies readback, and only then should validation be rerun.",
+          "For HCM bug validation errors that name missing Bug Fix ETA, wrong Bug Fix By, wrong Component Version, or an incorrect O/S / Platform (O/S), do not hand-write a BugDB update shell. Emit CODEX_RUNNER_COMMAND: bugdb.fix-hcm-validation-fields bug=<bugid> fixeta=<DD-MON-YYYY> fixby=<expected_version> component_version=<expected_version> product_line_id=<expected_os_id>. Omit a field only when validation did not request it. If validation says Bug Fix ETA is missing but the issue context does not provide a date, use fixeta_default=today; the parent runner writes the current runner date in DD-MON-YYYY format. The parent runner builds the required full BugDB header payload, fails on BugDB error JSON, verifies readback, and only then should validation be rerun.",
           "Prefer BugDB MCP for existing bug updates when the needed field-update tool exists.",
-          "If MCP cannot update existing bug fields, use $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh for approved field updates only; CODEX_HOME should be /scratch/<runner-user>/.codex, the wrapper is pinned to /bin/python3.11, and global python3 must not be changed.",
+          "If MCP cannot update existing bug fields, use runner_common/scripts/bugdb/RunBugDB.sh for approved field updates only; the launcher pins dev-bugdb-helper to /bin/python3.11 and global python3 must not be changed.",
           "Resolve friendly field labels such as Bug Fix ETA, Bug Fix By, Component Version, or Platform (O/S) to exact BugDB API keys before constructing a bug-update payload. For product_id 2419, use cached metadata at docs/bugdb_header_fields_2419.json; call header-fields only if the cache is missing or does not contain the requested label. Do not guess field keys.",
           "Do not print OAuth tokens or client secrets.",
           "For product_id 2419, Fix ETA maps to fixeta; write it in DD-MON-YYYY format such as 12-JUN-2026 because ISO date strings can fail with ORA-01861 even though readback displays ISO format. Bug Fix By maps to fixby, Component Version maps to component_version, and Platform (O/S) maps to product_line_id; when validation expects 226, write product_line_id=226 and verify BugDB readback shows os=226 before rerunning validation.",
+          "When one HCM validation output names multiple deterministic BugDB repairs, batch all applicable parent-runner commands in one response, in this order: bugdb.fix-hcm-validation-fields for header fields, bugdb.fix-fusionapps-bug-type for Bug Type (FusionApps), bugdb.add-tags for normal missing tags, then hcm.bug-validation for the same transaction. Do not wait for a separate Codex resume between these deterministic repairs unless a command result is needed to choose the next command.",
           "Bug Type (FusionApps) is a tracking group, not a bug header field, and dev-bugdb-helper bugsmart-closure only posts the closure template comment; it does not update tracking group data.",
           "When using dev-bugdb-helper for field updates, use supported syntax only: bug-update <rptno> --payload-file <json> for header fields, bug-update-transactions <rptno> --payload-file <json> for transaction or tracking-group fields, or raw <METHOD> <path> with --data-json/--payload-json and no trailing bug id. The helper does not support --set or --tg flags; construct a JSON payload file from current readback plus only the approved overrides, then pass that file with --payload-file. For FusionApps tracking-group updates, put the tg array in that JSON payload, for example {\"reassign_bug\":\"N\",\"tg\":[{\"tg_id\":2963,\"tg_operation\":\"C\",\"tg_new_value\":\"Backport\"}]}. Never append an extra bug number after a raw path.",
-          "If HCM bug validation reports Bug Type (FusionApps) missing or Undefined, choose the tracking-group value from the target series/workflow: Bronze or current-codeline bugs use Tracking; Silver bugs use Fwd Port; ADE/VB release backport workflow bugs use Backport. Update it with dev-bugdb-helper bug-update-transactions, preserving required header fields and including reassign_bug=N plus tg=[{tg_id:2963,tg_operation:C,tg_new_value:<Tracking|Fwd Port|Backport>}]. Do not use Defect for HCM Bronze/Silver validation repairs.",
+          "If HCM bug validation reports Bug Type (FusionApps) missing or Undefined, choose the tracking-group value from the target series/workflow: Bronze or current-codeline bugs use Tracking; Silver bugs use Fwd Port; ADE/VB release backport workflow bugs use Backport. For an HCMBRONZE label, HCMBRONZE tag, or ordinary <user>_bug-<bugid> current-line workflow, emit CODEX_RUNNER_COMMAND: bugdb.fix-fusionapps-bug-type bug=<bugid> bug_type=Tracking without asking the requester whether it is Fwd Port or Backport. For Silver/backport cases, pass the corresponding bug_type value. Do not use Defect for HCM Bronze/Silver validation repairs.",
           "For an ADE backport validation customer mismatch, keep the backport bug customer as INTERNAL -- FUSIONAPPS and align the base bug customer to the backport bug customer when the requester has approved this cleanup.",
           "For an ADE backport validation duplicate-release error caused by an earlier discarded backport bug, update only the discarded stale bug so it is no longer an active candidate for the target release, then rerun validation for the fresh transaction.",
-          "When HCM bug validation reports tag mismatch and says BVT is enabled for the product/label series, do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, or other BVT evidence tags manually. Run /net/phoenix851379.appsdev.fusionappsdphx1.oraclevcn.com/scratch/share/tools/pmg_validate from inside the confirmed ADE view instead. Before invoking it, verify /scratch/tmp exists and is writable because the script writes logs there, and verify sqlplus works in the loaded ADE view; use the existing Oracle client fallback if sqlplus is missing or cannot load libraries. Capture pmg_validate output, accept PREMERGE_BVT_PASS or PREMERGE_FAST_TRACK only after the script/tool creates or validates that evidence, then rerun this hcm.bug-validation command.",
+          "When HCM bug validation reports tag mismatch for a Bronze/current-line bug and the required tag is a normal BugDB tag such as HCMBRONZE EXTENDEDP1, emit CODEX_RUNNER_COMMAND: bugdb.add-tags bug=<bugid> tag=<required_tag>, then rerun validation. Do not route Bronze/current-line tag fixes to pmg_validate.",
+          "Use pmg_validate only for ADE release backport/BVT evidence tags such as PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, or ENV_ID. Do not add those BVT evidence tags manually. Run /net/phoenix851379.appsdev.fusionappsdphx1.oraclevcn.com/scratch/share/tools/pmg_validate from inside the confirmed ADE backport view instead. Before invoking it, verify /scratch/tmp exists and is writable because the script writes logs there, and verify sqlplus works in the loaded ADE view; use the existing Oracle client fallback if sqlplus is missing or cannot load libraries. Capture pmg_validate output, accept PREMERGE_BVT_PASS or PREMERGE_FAST_TRACK only after the script/tool creates or validates that evidence, then rerun this hcm.bug-validation command.",
           "If BugDB MCP add_tracking_group_data_to_bug returns Unknown tracking group name for Bug Type (FusionApps), use the bug-update-transactions path instead of asking for manual input.",
-          "Verify BugDB audit/readback after updates, including CHG: Fix ETA->..., CHG: Bug Type (FusionApps)->Tracking for Bronze/current-codeline, or CHG: Bug Type (FusionApps)->Fwd Port for Silver when applicable.",
+          "Verify BugDB readback first after updates. Do not use query-audit as a required success gate; if an audit query is explicitly needed, dev-bugdb-helper query-audit requires --data-json or --data-file and does not accept a positional bug number. Expected audit/readback evidence includes CHG: Fix ETA->..., CHG: Bug Type (FusionApps)->Tracking for Bronze/current-codeline, or CHG: Bug Type (FusionApps)->Fwd Port for Silver when applicable.",
           "After applying explicit BugDB follow-up instructions, rerun validation and keep gating until exit code 0 plus standalone PASS."
         ]
       },
@@ -926,6 +1117,9 @@
           {
             "label": "Run HCM bug validation outside Codex",
             "timeout_seconds": 900,
+            "env": {
+              "SHELL": "/bin/bash"
+            },
             "argv": [
               "bash",
               "-c",
@@ -952,10 +1146,22 @@
       ],
       "order": 75.5,
       "template": "bugdb fix-hcm-validation-fields bug={{bug}} fixeta={{fixeta}} fixby={{fixby}} component_version={{component_version}} product_line_id={{product_line_id}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "fix any deterministic BugDB field errors reported by bugvalidation",
+          "repair the validation-named Fix ETA, Fix By, Component Version, or platform fields"
+        ],
+        "parameter_hints": [
+          "Run only after HCM validation names a supported field mismatch.",
+          "Repair only the fields named by validation, verify readback, and rerun the same validation checkpoint."
+        ]
+      },
       "instructions": [
         "Use this parent-runner command when HCM bug validation reports missing Bug Fix ETA, wrong Bug Fix By, wrong Component Version, or an incorrect O/S / Platform (O/S) value.",
         "Do not hand-write dev-bugdb-helper bug-update payloads for these validation-field repairs. This command reads the current bug, builds the full required BugDB header payload, detects BugDB error JSON, verifies readback, and exits nonzero if the update did not land.",
-        "Use fixeta in DD-MON-YYYY format, for example 24-JUN-2026. Use fixby and component_version exactly as HCM validation reports, for example 11.13.26.10.0. Use product_line_id for the expected O/S value reported by validation, for example 226 for Linux-x86-64."
+        "Use fixeta in DD-MON-YYYY format, for example 24-JUN-2026. When validation only says Bug Fix ETA is missing and no date was provided, use fixeta_default=today so the parent runner computes the current runner date in DD-MON-YYYY format. Use fixby and component_version exactly as HCM validation reports, for example 11.13.26.10.0. Use product_line_id for the expected O/S value reported by validation, for example 226 for Linux-x86-64."
       ],
       "parameters": [
         {
@@ -972,16 +1178,22 @@
           "pattern": "^[0-9]{1,2}-[A-Za-z]{3}-[0-9]{4}$"
         },
         {
+          "name": "fixeta_default",
+          "label": "Default missing Fix ETA",
+          "required": false,
+          "pattern": "^today$"
+        },
+        {
           "name": "fixby",
           "label": "Fix By",
           "required": false,
-          "pattern": "^[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}\\.0$"
+          "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){4}$"
         },
         {
           "name": "component_version",
           "label": "Component Version",
           "required": false,
-          "pattern": "^[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}\\.[0-9]{2}\\.0$"
+          "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){4}$"
         },
         {
           "name": "product_line_id",
@@ -1011,6 +1223,14 @@
                 "value": "{{fixeta}}"
               },
               {
+                "when_param": "fixeta_default",
+                "value": "--fixeta-default"
+              },
+              {
+                "when_param": "fixeta_default",
+                "value": "{{fixeta_default}}"
+              },
+              {
                 "when_param": "fixby",
                 "value": "--fixby"
               },
@@ -1035,7 +1255,142 @@
                 "value": "{{product_line_id}}"
               },
               "--helper",
-              "/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh"
+              "/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/bugdb/RunBugDB.sh"
+            ]
+          }
+        ]
+      },
+      "ui_group": "BugDB",
+      "runner_safe": true
+    },
+    {
+      "id": "bugdb.fix-fusionapps-bug-type",
+      "label": "Fix FusionApps Bug Type",
+      "workflows": [
+        "custom",
+        "ade",
+        "seeddata",
+        "silver-merge",
+        "alm-backport"
+      ],
+      "order": 75.6,
+      "template": "bugdb fix-fusionapps-bug-type bug={{bug}} bug_type={{bug_type}}",
+      "instructions": [
+        "Use this parent-runner command when HCM bug validation reports Bug Type (FusionApps) as missing, Undefined, or wrong.",
+        "Bug Type (FusionApps) is tracking group 2963, not a BugDB header field. This command writes the approved tg payload through bug-update-transactions with reassign_bug=N. If BugDB reports an existing/duplicate tracking-group row, the command proceeds because the following HCM bug validation rerun is the authoritative gate. It verifies readback when bug-get exposes tracking-group values; if bug-get omits them, validation remains the gate.",
+        "Choose bug_type from the target series/workflow: Tracking for Bronze/current-codeline bugs, Fwd Port for Silver bugs, and Backport for ADE/VB release backport workflow bugs. For HCMBRONZE/current-line validation failures, do not ask the requester whether to use Fwd Port or Backport; use Tracking."
+      ],
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "fix the FusionApps Bug Type for bug 39822256",
+          "update Bug Type (FusionApps) using the supported mapping",
+          "apply the validation-named FusionApps Bug Type repair"
+        ],
+        "parameter_hints": [
+          "Extract exactly one BugDB bug number.",
+          "Map Bronze/current-codeline to Tracking, Silver to Fwd Port, and ADE/VB release backport workflows to Backport.",
+          "Use only after HCM validation names Bug Type (FusionApps), and verify with the following validation rerun."
+        ]
+      },
+      "parameters": [
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "bug_type",
+          "label": "Bug Type (FusionApps)",
+          "required": true,
+          "pattern": "^(Tracking|Fwd Port|Backport)$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Update the FusionApps Bug Type tracking group through bug-update-transactions before validation is rerun.",
+        "commands": [
+          {
+            "label": "Fix FusionApps Bug Type tracking group",
+            "timeout_seconds": 300,
+            "argv": [
+              "python3",
+              "/scratch/__TARGET_USER__/codeshare/projects/codex_automation/runner_common/bugdb_fusionapps_bug_type_fix.py",
+              "--bug",
+              "{{bug}}",
+              "--bug-type",
+              "{{bug_type}}",
+              "--helper",
+              "/scratch/__TARGET_USER__/codeshare/projects/codex_automation/runner_common/scripts/bugdb/RunBugDB.sh"
+            ]
+          }
+        ]
+      },
+      "ui_group": "BugDB",
+      "runner_safe": true
+    },
+    {
+      "id": "bugdb.add-tags",
+      "label": "Add BugDB Tag",
+      "workflows": [
+        "custom",
+        "ade",
+        "seeddata",
+        "silver-merge",
+        "alm-backport"
+      ],
+      "order": 75.7,
+      "template": "bugdb add-tags bug={{bug}} tag={{tag}}",
+      "skill": "dev-bugdb-helper",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-run",
+        "examples": [
+          "fix any normal missing BugDB tag reported by bugvalidation",
+          "add the validation-required REL13PREARU or FWD tag"
+        ],
+        "parameter_hints": [
+          "Run only after HCM validation names the exact normal tag.",
+          "Never synthesize or manually add BVT evidence tags."
+        ]
+      },
+      "instructions": [
+        "Use this parent-runner command when HCM bug validation reports a missing normal BugDB tag such as HCMBRONZE EXTENDEDP1, HCMSILVER FWD, CUSTOMER_IMPACT, REL13PREARU-<release>, FWD, or a REL13BUNDLE tag.",
+        "For Bronze/current-line validation failures, add the required HCMBRONZE tag directly with this command and rerun hcm.bug-validation. Do not run pmg_validate for Bronze/current-line HCMBRONZE tag fixes.",
+        "Do not use this command for BVT evidence tags such as PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, or ENV_ID unless the requester explicitly approved that manual bypass; those evidence tags normally require the backport/BVT validation flow."
+      ],
+      "parameters": [
+        {
+          "name": "bug",
+          "label": "Bug number",
+          "required": true,
+          "pattern": "^[0-9]+$",
+          "sequence_ref": true
+        },
+        {
+          "name": "tag",
+          "label": "BugDB tag",
+          "required": true,
+          "pattern": "^[A-Za-z0-9_. -]+$"
+        }
+      ],
+      "runner_execution": {
+        "enabled": true,
+        "summary": "Add an approved BugDB tag through the BugDB tags endpoint.",
+        "commands": [
+          {
+            "label": "Add BugDB tag",
+            "timeout_seconds": 300,
+            "argv": [
+              "python3",
+              "/scratch/__TARGET_USER__/codeshare/projects/codex_automation/runner_common/bugdb_create_bug.py",
+              "--add-tag-to-bug",
+              "{{bug}}",
+              "--tag",
+              "{{tag}}"
             ]
           }
         ]
@@ -1054,9 +1409,21 @@
       ],
       "order": 76,
       "template": "pmg_validate view={{view}} bug={{bug}}",
+      "natural_language": {
+        "enabled": true,
+        "execution": "confirm-then-handoff",
+        "examples": [
+          "run the required BVT repair if PRE-ARU bugvalidation reports BVT evidence missing",
+          "run pmg_validate for the release backport and rerun bugvalidation"
+        ],
+        "parameter_hints": [
+          "This is conditional on release-backport validation reporting BVT/premerge evidence as the remaining failure.",
+          "Use the created child bug and its ADE view, refuse fast-track bypass, and rerun hcm.bug-validation after success."
+        ]
+      },
       "instructions": [
-        "Run this only when HCM bug validation reports tag mismatch and says BVT is enabled for the product/label series.",
-        "Do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, ENV_ID, or other evidence tags manually.",
+        "Run this only for ADE release backport/BVT evidence validation. Do not run it for ordinary Bronze/current-line HCMBRONZE tag fixes; use bugdb.add-tags for those.",
+        "Do not add PREMERGE_BVT_PASS, PREMERGE_FAST_TRACK, P3_ENV_ID, ENV_ID, or other evidence tags manually unless the requester explicitly approves that bypass.",
         "Run the shared pmg_validate script from inside the confirmed ADE view using the normal lightweight RunInView path first, pass the bug number when prompted, verify /scratch/tmp is writable first, and verify sqlplus works or use the Oracle client fallback.",
         "If pmg_validate reports the view/transaction is not up to date or the premerge environment has not picked up the transaction, run runner_common/scripts/ade-scripts/refreshview_loop.sh --once inside the same ADE view and retry pmg_validate in a bounded loop until it processes the transaction or the retry limit is reached. For the long-running BVT pickup watcher, run refreshview_loop.sh without --once. The helper writes per-view logs under /scratch/<user>/codex-refreshview-logs/<view>/. If ADE reports refreshview is already in progress, the helper waits until VIEW_REFRESH_STATE returns OK, then continues the label polling loop.",
         "If pmg_validate asks whether to merge without PREMERGE BVT PASS certification, answer N. Do not register fast track from automation unless the user explicitly approves that bypass.",
@@ -1162,8 +1529,8 @@
         "If starting outside the view, use the repo-common scripts/ade-scripts/RunInView.sh wrapper or equivalent ADE setup to execute commands in the confirmed view environment; use the repo-common wrapper, not the deployed ADE Lens wrapper, and do not use the deployed ADE Lens RunInView.sh for this runner workflow.",
         "For pre-cleanview ADE lifecycle checks in a PMC workflow, including ade pwv, ade lsco, ade showlabels, ade refreshview, and ade cleanview, keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path; do not run a standalone --full-fmwc entry before refreshview.",
         "Before PMC setup/run, compare the confirmed ADE view's current label with the latest label for the same series using lightweight ADE lifecycle commands such as ade pwv or ade showlabels. If the view is older than the latest label, run the ade.refresh-view catalog command for that view first, then continue to hcm.pmc only after the refreshed view is ready. This stale-label refresh check applies across workflows that run PMC.",
-        "Use a minimum timeout budget of 600 seconds for every ADE command wrapper invocation, including read-only ADE checks, refreshview, cleanview, bug validation, checkin/save, OraReview, and MergeReq-related ADE preflight commands. Do not wrap ADE commands with timeout 120; refreshview commonly needs up to 10 minutes, and PMC or SeedData-specific helpers may use longer budgets when documented.",
-        "For actual PMC setup/run commands through scripts/ade-scripts/RunInView.sh, pass --full-fmwc in the ADE session where PMC is intended to run and that will run pmc_wrapper so FUSIONAPPS_SKIP_FMWC is not set; regular non-PMC ADE tasks and non-PMC ADE work should keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path.",
+        "Use a minimum timeout budget of 1800 seconds for every ADE command wrapper invocation, including read-only ADE checks, refreshview, cleanview, bug validation, checkin/save, OraReview, and MergeReq-related ADE preflight commands. Do not wrap ADE commands with timeout 120; refreshview commonly needs up to 10 minutes, and PMC or SeedData-specific helpers may use longer budgets when documented.",
+        "For actual PMC setup/run commands through scripts/ade-scripts/RunInView.sh, pass --full-fmwc in the ADE session where PMC is intended to run; this is the ADE session that will run pmc_wrapper, so FUSIONAPPS_SKIP_FMWC is not set; regular non-PMC ADE tasks and non-PMC ADE work should keep the wrapper default FUSIONAPPS_SKIP_FMWC=TRUE path.",
         "If ade cleanview is part of the PMC setup, run any needed refreshview before cleanview. After ade cleanview completes, the ADE view session that ran cleanview must be exited and must not run any further commands in it; pass --full-fmwc only after cleanview completes when re-entering the same ADE view before ade pwv, ade lsco, ade expand, or pmc_wrapper. That re-entered session is the PMC-intended ADE session.",
         "When using scripts/ade-scripts/RunInView.sh, cleanview must be its own invocation; include an explicit blocking re-entry command such as scripts/ade-scripts/RunInView.sh --full-fmwc -view <view> -- \"cd $AVR; exit\" only after cleanview. For the repo-common absolute helper path, use /scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/ade-scripts/RunInView.sh --full-fmwc -view <view> -- \"cd $AVR; exit\". After the blocking re-entry completes, then batch later commands in one local wrapper invocation: batch sequential post-cleanview commands in that same fresh local wrapper session, using inline output checks for required checkpoints; do not re-enter the view for each command.",
         "Never chain commands after cleanview in the same quoted command, shell, or ADE session.",
@@ -1174,9 +1541,9 @@
         "After pmc_wrapper finishes, verify the generated PMC HTML and premerge artifacts before reporting success.",
         "Treat PMC_CODE_ISSUE, PMC_CODE_ERROR, missing fusionapps/premerge/premerge_result.json, or a Central PMC section that contains only startup/initial checks as blocking. A PMC Wrapper Summary or Central PMC Run Summary failure caused only by JUnits/JUnit tests is not a blocking PMC failure for MergeReq; record it separately as expected JUnit risk and continue if all non-JUnit PMC blockers are clean.",
         "If the PMC report shows BUG Validation Status: INVALID and no other PMC blocker, hand off manual HCM bug validation to the parent runner with CODEX_RUNNER_COMMAND: hcm.bug-validation validation_ref=<actual_transaction>. For a normal non-backport bug this can be the bug-derived transaction; for a backport use the actual ADE backport transaction name. Bug validation does not need an ADE view; require exit code 0 plus standalone PASS before continuing.",
-        "When manual bug validation PASSes, upload the parent stdout log or captured .txt output to BugDB with $CODEX_HOME/skills/dev-bugdb-helper/scripts/run-bugdb.sh attachment-upload <bugid> <txt-file>, substituting {{bug}} for <bugid>, verify the attachment, and proceed; if manual bug validation is non-PASS, stop with CODEX_TRIGGER_STATUS: needs-input.",
-        "If any non-JUnit blocking PMC marker is present, do not report PMC success or proceed to mergereq; include CODEX_TRIGGER_STATUS: needs-input with the exact report path and blocker.",
-        "Stop on the first failing command, report the command, exit code, and useful error text, and include CODEX_TRIGGER_STATUS: needs-input."
+        "When manual bug validation PASSes, upload the parent stdout log or captured .txt output to BugDB with runner_common/scripts/bugdb/RunBugDB.sh attachment-upload <bugid> <txt-file>, substituting {{bug}} for <bugid>, verify the attachment, and proceed. If manual bug validation is non-PASS, do not proceed to mergereq; feed the evidence back to the same goal loop for approved in-scope diagnosis, repair, and revalidation.",
+        "If any non-JUnit blocking PMC marker is present, do not report PMC success or proceed to mergereq. Preserve the exact report path and blocker as loop evidence, diagnose and repair it within the approved scope, and ask for input only at a genuine boundary or bounded-loop limit.",
+        "Stop the current command sequence on the first failing command, record its exit code and useful error text, and return that evidence to the orchestrator for bounded in-scope repair; do not ask the requester to choose the next technical step."
       ],
       "command_sequence": [
         "ade expand -recurse $AVR/fusionapps/com/config",
@@ -1184,6 +1551,22 @@
         "if ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0; export LD_LIBRARY_PATH=${ORACLE_HOME}/lib; export PATH=${ORACLE_HOME}/bin:${PATH}; fi",
         "$HCMDEV_ROOT/bin/pmc_wrapper -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1"
       ],
+      "postcondition": {
+        "exit_code": 0,
+        "required_output_patterns": [
+          "PMC Wrapper Summary\\s*:\\s*PASS",
+          "Central PMC Run Summary Validation Status\\s*:\\s*Successful",
+          "BUG Validation Run Summary\\s*:\\s*PASSED"
+        ],
+        "forbidden_output_patterns": [
+          "(^|\\n)\\s*\\[ERROR\\]",
+          "\\bCannot proceed\\b",
+          "\\bBug Validation Status:\\s*FAIL\\b"
+        ],
+        "description": "The runner must reach pmc_wrapper and see the wrapper's PASS/SUCCESSFUL/PASSED summary; ADE/FMW view prep alone is not PMC completion.",
+        "on_failure_status": "needs-input",
+        "failure_guidance": "Do not proceed to MergeReq. Report that PMC did not produce clean success output and rerun or repair PMC first."
+      },
       "runner_execution": {
         "enabled": true,
         "allow_approval_required": true,
@@ -1198,7 +1581,7 @@
               "-view",
               "{{view}}",
               "--",
-              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\ncd \"$AVR\"\nade expand -recurse \"$AVR/fusionapps/com/config\"\nade expand \"$AVR/fainteg\" -r\nif ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0; export LD_LIBRARY_PATH=${ORACLE_HOME}/lib; export PATH=${ORACLE_HOME}/bin:${PATH}; fi\n\"$HCMDEV_ROOT/bin/pmc_wrapper\" -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1"
+              "set -e\nexport COLUMNS=${COLUMNS:-160}\nexport LINES=${LINES:-40}\nexport TERM=${TERM:-xterm}\ncd \"$AVR\"\nade expand -recurse \"$AVR/fusionapps/com/config\"\nade expand \"$AVR/fainteg\" -r\nif ! command -v sqlplus >/dev/null 2>&1 && [ -x /usr/local/packages/oracleserver_remote/19.0.0/bin/sqlplus ]; then export ORACLE_HOME=/usr/local/packages/oracleserver_remote/19.0.0; export LD_LIBRARY_PATH=${ORACLE_HOME}/lib; export PATH=${ORACLE_HOME}/bin:${PATH}; fi\necho \"Runner diagnostic: invoking pmc_wrapper for bug {{bug}}\"\n\"$HCMDEV_ROOT/bin/pmc_wrapper\" -bugid {{bug}} -d fusion/fusion@bomvm43.bomsubnet1.fusionappsdbom1.oraclevcn.com:1620/ems13599_FDB -DupdateBug=D -DrunJUnits=1\necho \"PMC_RUN_COMPLETED bug={{bug}} view={{view}}\""
             ]
           }
         ]
@@ -1251,7 +1634,7 @@
         ],
         "parameter_hints": [
           "Use the current issue or resumed session context to infer the ADE view, active transaction, and bug when the follow-up does not repeat them.",
-          "Default missing mode to normal, default missing manager to alok.x.sahay@oracle.com, omit release when not supplied, and omit CC when not supplied.",
+          "Default missing mode to normal, default missing manager to alok.x.sahay@oracle.com, omit release when not supplied, and omit CC when not supplied. Target release values such as 26.07 or 11.13.26.07.0 are not MergeReq release email values and must not be passed as release.",
           "For ADE release backport transactions, use mode=backport, not mode=normal; the bug parameter is context for the handoff and is not passed as --bug to mergereq.",
           "For ADE release backports, collect the MergeReq backport questionnaire answers before handoff. If the answers are not supplied, ask for Additional Bugs, DDR regression, and port companion answers or an explicit NA for each.",
           "If the requester asks to refreshview to latest label and submit MergeReq, include refreshview before submit in the proposed sequence.",
@@ -1261,7 +1644,7 @@
       "instructions": [
         "Use the mergereq skill for submission workflow, property checks, and command generation.",
         "Use Mergereq MCP tools for report-card details and current-transaction quality previews before submitting when available.",
-        "For HCM/ADE MergeReq submit or resend, default missing mode to normal email submit, default missing manager to alok.x.sahay@oracle.com, omit release unless explicitly provided or required by mergereq, and omit CC unless explicitly provided. Do not ask for these values when they are omitted. Parent-runner submission must use the exact catalog handoff CODEX_RUNNER_COMMAND: mergereq.submit view=<viewname> bug=<bugid> mode=normal manager=alok.x.sahay@oracle.com for normal bug transactions, or mode=backport for ADE release backport transactions; never invent alternate command IDs such as hcm.mergereq.",
+        "For HCM/ADE MergeReq submit or resend, default missing mode to normal email submit, default missing manager to alok.x.sahay@oracle.com, omit release unless an actual MergeReq release/approver email or user ID is explicitly provided or required by mergereq, and omit CC unless explicitly provided. Do not pass target release values such as 26.07, 2607, or 11.13.26.07.0 as release. Do not ask for these values when they are omitted. Parent-runner submission must use the exact catalog handoff CODEX_RUNNER_COMMAND: mergereq.submit view=<viewname> bug=<bugid> mode=normal manager=alok.x.sahay@oracle.com for normal bug transactions, or mode=backport for ADE release backport transactions; never invent alternate command IDs such as hcm.mergereq.",
         "For mode=normal, generate the normal email-submit MergeReq command, not check-only and not db-only/no-mail.",
         "For mode=backport, submit with mergereq -y --backport --aru_automate --remove --resend. Do not pass the backport bug as --bug; MergeReq identifies the backport transaction from the ADE view. Parent-runner execution omits --agent because mergereq accepts that flag only from its recognized agent context.",
         "For ADE release backports, follow the MergeReq backport questionnaire before submission: Additional Bugs, DDR regression, and port companion answers must be explicitly supplied or confirmed as NA. Pass non-NA answers in additional_bugs, ddr_regression, port_companion_win, port_companion_arm64, or port_companion_linux so the parent runner can set the MergeReq transaction properties before submission.",
@@ -1308,7 +1691,7 @@
         {
           "name": "mode",
           "label": "Mode",
-          "required": true,
+          "required": false,
           "default": "normal",
           "options": [
             "normal",
@@ -1327,7 +1710,7 @@
         },
         {
           "name": "release",
-          "label": "Release email",
+          "label": "Release approver email",
           "required": false,
           "pattern": "^[A-Za-z0-9_.@+-]+$"
         },
@@ -1376,7 +1759,8 @@
       "label": "Merge Approved ADE Transaction",
       "workflows": [
         "ade",
-        "custom"
+        "custom",
+        "silver-merge"
       ],
       "order": 82,
       "template": "ade merge-approved view={{view}} transaction={{transaction}}",
@@ -1393,13 +1777,15 @@
           "Use the current issue or resumed session context to infer the ADE view and active transaction when the follow-up does not repeat them.",
           "If the approved/move-ready MergeReq report card or target view cannot be verified, ask for the missing value with CODEX_TRIGGER_STATUS: needs-input.",
           "Refresh the view before merge only when the requester explicitly allowed it and ADE state indicates refresh is needed.",
-          "After approval and readiness verification, emit CODEX_RUNNER_COMMAND: ade.merge-approved-transaction view=<viewname> transaction=<txnname> so the parent runner executes the merge outside Codex."
+          "After approval and readiness verification, emit CODEX_RUNNER_COMMAND: ade.merge-approved-transaction view=<viewname> transaction=<txnname> so the parent runner executes the merge outside Codex.",
+          "There is no ade.status catalog command. Use read-only ADE inspection for preflight or post-merge verification; never emit CODEX_RUNNER_COMMAND: ade.status."
         ]
       },
       "instructions": [
         "This intent is for post-approval merge only, not PMC and not MergeReq submit/resend.",
         "Approved MergeReq merge: treat this as a post-approval ADE merge workflow. Verify the approved/move-ready report card and active view/transaction, refresh the view only if needed and allowed, then use `ade savetrans; ade beginmerge; ade mergetrans; ade endmerge`.",
         "Post-approval ADE merge execution must happen outside the Codex child process. After approval and readiness verification, emit CODEX_RUNNER_COMMAND: ade.merge-approved-transaction view=<viewname> transaction=<txnname> so the parent runner executes runner_execution.",
+        "A direct imperative request to identify a view and merge a named transaction authorizes that exact typed merge action after architect contract review; do not ask for the same approval again.",
         "Do not rerun PMC and do not submit, resend, or reroute MergeReq unless explicitly requested.",
         "Run merge commands from the confirmed ADE view and stop on the first ADE error."
       ],
@@ -1509,7 +1895,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh\"\nBUG=\"{{bug}}\"\nSTATUS=\"{{status}}\"\nBASE_RPTNO=\"{{base_rptno}}\"\nif [ -n \"$BASE_RPTNO\" ]; then\n  if [ -z \"$STATUS\" ]; then\n    STATUS=36\n  elif [ \"$STATUS\" != \"36\" ]; then\n    echo \"Duplicate BugDB closes must use status 36; got status ${STATUS}.\" >&2\n    exit 2\n  fi\nfi\nif [ -z \"$STATUS\" ]; then\n  echo \"Missing BugDB status. Provide status=<number>, or provide base_rptno for duplicate close status 36.\" >&2\n  exit 2\nfi\nif [ ! -x \"$BUGDB\" ]; then\n  echo \"Missing BugDB helper: $BUGDB\" >&2\n  exit 127\nfi\necho \"Preflight: reading target bug ${BUG}\"\ntarget_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-target.XXXXXX\")\npayload_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-payload.XXXXXX\")\nfinal_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-final.XXXXXX\")\ncleanup() { rm -f \"$target_file\" \"$payload_file\" \"$final_file\"; }\ntrap cleanup EXIT\n\"$BUGDB\" --compact bug-get \"$BUG\" --size 1 | tee \"$target_file\"\nif [ -n \"$BASE_RPTNO\" ]; then\n  echo \"Preflight: reading base bug ${BASE_RPTNO}\"\n  \"$BUGDB\" --compact bug-get \"$BASE_RPTNO\" --size 1\n  /bin/python3.11 -c 'import json, pathlib, sys\nitem=(json.loads(pathlib.Path(sys.argv[1]).read_text()).get(\"items\") or [{}])[0]\nif not item:\n    raise SystemExit(\"bug-get returned no target bug\")\nstatus=int(sys.argv[2])\nbase=sys.argv[3]\ndef first(*values, default=None):\n    for value in values:\n        if value is not None:\n            return value\n    return default\npayload={\n    \"product_id\": first(item.get(\"product_id\")),\n    \"component\": first(item.get(\"component\")),\n    \"component_version\": first(item.get(\"component_version\"), default=\"0.0.0.0\"),\n    \"status\": status,\n    \"bug_type\": first(item.get(\"bug_type\")),\n    \"gops\": first(item.get(\"gops\"), default=\"G\"),\n    \"release_status\": first(item.get(\"rs_release_status\"), default=\"D\"),\n    \"database_version\": first(item.get(\"database_version\"), default=\"N/A\"),\n    \"product_line_id\": first(item.get(\"product_line_id\"), item.get(\"os\")),\n    \"os_version\": first(item.get(\"os_version\"), default=\"NO DATA\"),\n    \"release\": first(item.get(\"release\"), default=\"$null\"),\n    \"severity\": first(item.get(\"severity\")),\n    \"desirability\": first(item.get(\"desirability\"), default=\"$null\"),\n    \"support_contact\": first(item.get(\"support_contact\")),\n    \"assignee\": first(item.get(\"assignee\")),\n    \"customer\": first(item.get(\"customer\"), default=\"INTERNAL\"),\n    \"subject\": first(item.get(\"subject\")),\n    \"security_flag\": first(item.get(\"security_flag\"), default=\"N\"),\n    \"mail_response_type\": first(item.get(\"mail_response_type\"), default=\"E\"),\n    \"base_rptno\": int(base),\n}\nprint(json.dumps(payload, separators=(\",\", \":\")))' \"$target_file\" \"$STATUS\" \"$BASE_RPTNO\" > \"$payload_file\"\n  echo \"Updating ${BUG} to requested status ${STATUS} with base_rptno=${BASE_RPTNO}\"\n  \"$BUGDB\" --compact bug-update \"$BUG\" --payload-file \"$payload_file\"\nelse\n  echo \"Updating ${BUG} to requested status ${STATUS}\"\n  \"$BUGDB\" --compact set-status \"$BUG\" \"$STATUS\"\nfi\necho \"Verification: reading updated bug ${BUG}\"\n\"$BUGDB\" --compact bug-get \"$BUG\" --size 1 | tee \"$final_file\"\n/bin/python3.11 -c 'import json, pathlib, sys\nitem=(json.loads(pathlib.Path(sys.argv[1]).read_text()).get(\"items\") or [{}])[0]\nexpected_status=int(sys.argv[2])\nexpected_base=sys.argv[3]\nactual_status=item.get(\"status\")\nif actual_status != expected_status:\n    raise SystemExit(\"BugDB readback status mismatch: expected %s, got %s\" % (expected_status, actual_status))\nif expected_base:\n    actual_base=item.get(\"base_rptno\")\n    if str(actual_base) != str(expected_base):\n        raise SystemExit(\"BugDB readback base_rptno mismatch: expected %s, got %s\" % (expected_base, actual_base))\nprint(\"Verified BugDB readback: status=%s%s\" % (actual_status, (\" base_rptno=\" + str(item.get(\"base_rptno\"))) if expected_base else \"\"))' \"$final_file\" \"$STATUS\" \"$BASE_RPTNO\""
+              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/bugdb/RunBugDB.sh\"\nBUG=\"{{bug}}\"\nSTATUS=\"{{status}}\"\nBASE_RPTNO=\"{{base_rptno}}\"\nif [ -n \"$BASE_RPTNO\" ]; then\n  if [ -z \"$STATUS\" ]; then\n    STATUS=36\n  elif [ \"$STATUS\" != \"36\" ]; then\n    echo \"Duplicate BugDB closes must use status 36; got status ${STATUS}.\" >&2\n    exit 2\n  fi\nfi\nif [ -z \"$STATUS\" ]; then\n  echo \"Missing BugDB status. Provide status=<number>, or provide base_rptno for duplicate close status 36.\" >&2\n  exit 2\nfi\nif [ ! -x \"$BUGDB\" ]; then\n  echo \"Missing BugDB helper: $BUGDB\" >&2\n  exit 127\nfi\necho \"Preflight: reading target bug ${BUG}\"\ntarget_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-target.XXXXXX\")\npayload_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-payload.XXXXXX\")\nfinal_file=$(mktemp \"${TMPDIR:-/tmp}/bugdb-final.XXXXXX\")\ncleanup() { rm -f \"$target_file\" \"$payload_file\" \"$final_file\"; }\ntrap cleanup EXIT\n\"$BUGDB\" --compact bug-get \"$BUG\" --size 1 | tee \"$target_file\"\nif [ -n \"$BASE_RPTNO\" ]; then\n  echo \"Preflight: reading base bug ${BASE_RPTNO}\"\n  \"$BUGDB\" --compact bug-get \"$BASE_RPTNO\" --size 1\n  /bin/python3.11 -c 'import json, pathlib, sys\nitem=(json.loads(pathlib.Path(sys.argv[1]).read_text()).get(\"items\") or [{}])[0]\nif not item:\n    raise SystemExit(\"bug-get returned no target bug\")\nstatus=int(sys.argv[2])\nbase=sys.argv[3]\ndef first(*values, default=None):\n    for value in values:\n        if value is not None:\n            return value\n    return default\npayload={\n    \"product_id\": first(item.get(\"product_id\")),\n    \"component\": first(item.get(\"component\")),\n    \"component_version\": first(item.get(\"component_version\"), default=\"0.0.0.0\"),\n    \"status\": status,\n    \"bug_type\": first(item.get(\"bug_type\")),\n    \"gops\": first(item.get(\"gops\"), default=\"G\"),\n    \"release_status\": first(item.get(\"rs_release_status\"), default=\"D\"),\n    \"database_version\": first(item.get(\"database_version\"), default=\"N/A\"),\n    \"product_line_id\": first(item.get(\"product_line_id\"), item.get(\"os\")),\n    \"os_version\": first(item.get(\"os_version\"), default=\"NO DATA\"),\n    \"release\": first(item.get(\"release\"), default=\"$null\"),\n    \"severity\": first(item.get(\"severity\")),\n    \"desirability\": first(item.get(\"desirability\"), default=\"$null\"),\n    \"support_contact\": first(item.get(\"support_contact\")),\n    \"assignee\": first(item.get(\"assignee\")),\n    \"customer\": first(item.get(\"customer\"), default=\"INTERNAL\"),\n    \"subject\": first(item.get(\"subject\")),\n    \"security_flag\": first(item.get(\"security_flag\"), default=\"N\"),\n    \"mail_response_type\": first(item.get(\"mail_response_type\"), default=\"E\"),\n    \"base_rptno\": int(base),\n}\nprint(json.dumps(payload, separators=(\",\", \":\")))' \"$target_file\" \"$STATUS\" \"$BASE_RPTNO\" > \"$payload_file\"\n  echo \"Updating ${BUG} to requested status ${STATUS} with base_rptno=${BASE_RPTNO}\"\n  \"$BUGDB\" --compact bug-update \"$BUG\" --payload-file \"$payload_file\"\nelse\n  echo \"Updating ${BUG} to requested status ${STATUS}\"\n  \"$BUGDB\" --compact set-status \"$BUG\" \"$STATUS\"\nfi\necho \"Verification: reading updated bug ${BUG}\"\n\"$BUGDB\" --compact bug-get \"$BUG\" --size 1 | tee \"$final_file\"\n/bin/python3.11 -c 'import json, pathlib, sys\nitem=(json.loads(pathlib.Path(sys.argv[1]).read_text()).get(\"items\") or [{}])[0]\nexpected_status=int(sys.argv[2])\nexpected_base=sys.argv[3]\nactual_status=item.get(\"status\")\nif actual_status != expected_status:\n    raise SystemExit(\"BugDB readback status mismatch: expected %s, got %s\" % (expected_status, actual_status))\nif expected_base:\n    actual_base=item.get(\"base_rptno\")\n    if str(actual_base) != str(expected_base):\n        raise SystemExit(\"BugDB readback base_rptno mismatch: expected %s, got %s\" % (expected_base, actual_base))\nprint(\"Verified BugDB readback: status=%s%s\" % (actual_status, (\" base_rptno=\" + str(item.get(\"base_rptno\"))) if expected_base else \"\"))' \"$final_file\" \"$STATUS\" \"$BASE_RPTNO\""
             ]
           }
         ]
@@ -1613,7 +1999,7 @@
       "skill": "dev-bugdb-helper",
       "natural_language": {
         "enabled": true,
-        "execution": "confirm-then-run",
+        "execution": "direct",
         "examples": [
           "fill bug closure template for bug 39452875",
           "post BugSmart closure for 39452875",
@@ -1695,7 +2081,7 @@
             "argv": [
               "bash",
               "-c",
-              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/.codex/skills/dev-bugdb-helper/scripts/run-bugdb.sh\"\nBUG=\"{{bug}}\"\nFUNCTIONAL_SUMMARY=\"{{functional_summary}}\"\nREPRO_TESTING_RECOMMENDATIONS=\"{{repro_testing_recommendations}}\"\nTECHNICAL_SUMMARY=\"{{technical_summary}}\"\nDESCRIPTION=\"{{description}}\"\nif [ -z \"$FUNCTIONAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  FUNCTIONAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$FUNCTIONAL_SUMMARY\" ]; then\n  FUNCTIONAL_SUMMARY=\"Address bug $BUG based on the BugDB issue context and requested fix.\"\nfi\nif [ -z \"$REPRO_TESTING_RECOMMENDATIONS\" ]; then\n  REPRO_TESTING_RECOMMENDATIONS=\"Re test bug scenario\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  TECHNICAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ]; then\n  TECHNICAL_SUMMARY=\"$FUNCTIONAL_SUMMARY\"\nfi\nexec \"$BUGDB\" --compact bugsmart-closure \"$BUG\" --functional-summary \"$FUNCTIONAL_SUMMARY\" --repro-testing-recommendations \"$REPRO_TESTING_RECOMMENDATIONS\" --technical-summary \"$TECHNICAL_SUMMARY\" --non-interactive --yes"
+              "set -euo pipefail\nBUGDB=\"/scratch/rnerolu/codeshare/projects/codex_automation/runner_common/scripts/bugdb/RunBugDB.sh\"\nBUGDB_PYTHON=\"\"\nfor candidate in /bin/python3.11 /usr/bin/python3.11; do\n  if [ -x \"$candidate\" ]; then\n    BUGDB_PYTHON=\"$candidate\"\n    break\n  fi\ndone\nif [ -z \"$BUGDB_PYTHON\" ]; then\n  echo \"Missing BugDB Python runtime: expected /bin/python3.11 or /usr/bin/python3.11.\" >&2\n  exit 127\nfi\nexport BUGDB_PYTHON\nBUG=\"{{bug}}\"\nFUNCTIONAL_SUMMARY=\"{{functional_summary}}\"\nREPRO_TESTING_RECOMMENDATIONS=\"{{repro_testing_recommendations}}\"\nTECHNICAL_SUMMARY=\"{{technical_summary}}\"\nDESCRIPTION=\"{{description}}\"\nif [ -z \"$FUNCTIONAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  FUNCTIONAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$FUNCTIONAL_SUMMARY\" ]; then\n  FUNCTIONAL_SUMMARY=\"Address bug $BUG based on the BugDB issue context and requested fix.\"\nfi\nif [ -z \"$REPRO_TESTING_RECOMMENDATIONS\" ]; then\n  REPRO_TESTING_RECOMMENDATIONS=\"Re test bug scenario\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ] && [ -n \"$DESCRIPTION\" ]; then\n  TECHNICAL_SUMMARY=\"$DESCRIPTION\"\nfi\nif [ -z \"$TECHNICAL_SUMMARY\" ]; then\n  TECHNICAL_SUMMARY=\"$FUNCTIONAL_SUMMARY\"\nfi\nexec \"$BUGDB\" --compact bugsmart-closure \"$BUG\" --functional-summary \"$FUNCTIONAL_SUMMARY\" --repro-testing-recommendations \"$REPRO_TESTING_RECOMMENDATIONS\" --technical-summary \"$TECHNICAL_SUMMARY\" --non-interactive --yes"
             ]
           }
         ]

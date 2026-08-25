@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260616-rag-study-modes";
+  var ASSET_VERSION = "20260825-ade-actions-workflow";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -46,8 +46,8 @@
     codexModelPresets: [
       {
         id: "cheap-default",
-        label: "Cheap default",
-        model: "gpt-5.5",
+        label: "GPT-5.6 Luna Medium",
+        model: "gpt-5.6-luna",
         reasoningEffort: "medium",
         serviceTier: "instant",
         default: true
@@ -61,6 +61,23 @@
       }
     ],
     workflows: [
+      {
+        id: "ade-actions",
+        name: "ADE Actions",
+        kind: "ADE",
+        description: "Run the structured run_ade_action.sh workflow.",
+        requiresProject: true,
+        projectAliases: ["codex-automation"],
+        operations: [
+          {
+            id: "run-action",
+            name: "Run ADE Action",
+            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands", "adeTransactionDescription", "adeBackport", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeBugSubject", "details"],
+            requiredFields: ["adeAction"],
+            titleField: "adeAction"
+          }
+        ]
+      },
       {
         id: "rag",
         name: "RAG Study",
@@ -141,6 +158,82 @@
   };
 
   var fieldSpecs = {
+    adeAction: {
+      id: "adeActionInput",
+      label: "Action",
+      type: "select",
+      options: ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction"],
+      defaultValue: "refreshview",
+      taskLabel: "Action"
+    },
+    adeView: {
+      id: "adeActionViewInput",
+      label: "ADE view",
+      placeholder: "rnerolu_v_bug_39913852_bronze",
+      taskLabel: "ADE view",
+      conditional: "adeActionView"
+    },
+    adeBug: {
+      id: "adeActionBugInput",
+      label: "Bug number (optional when derivable from view)",
+      placeholder: "39913852",
+      taskLabel: "Bug number",
+      conditional: "adeActionBug"
+    },
+    adeManualPrompts: {
+      id: "adeManualPromptsInput",
+      label: "Let MergeReq ask questions",
+      type: "select",
+      options: ["N", "Y"],
+      defaultValue: "N",
+      taskLabel: "Manual prompts",
+      conditional: "adeActionMergereq"
+    },
+    adeCustomCommands: {
+      id: "adeCustomCommandsInput",
+      label: "Custom ADE commands",
+      type: "textarea",
+      rows: 5,
+      placeholder: "One command per line",
+      taskLabel: "Custom commands",
+      conditional: "adeActionCustom"
+    },
+    adeTransactionDescription: {
+      id: "adeTransactionDescriptionInput",
+      label: "Transaction description",
+      type: "textarea",
+      rows: 3,
+      taskLabel: "Transaction description",
+      conditional: "adeActionOraReview"
+    },
+    adeBackport: {
+      id: "adeBackportInput",
+      label: "Is this a backport?",
+      type: "select",
+      options: ["N", "Y"],
+      defaultValue: "N",
+      taskLabel: "Backport",
+      conditional: "adeActionSetup"
+    },
+    adeTier: {
+      id: "adeTierInput",
+      label: "Label tier",
+      type: "select",
+      options: ["Bronze", "Silver"],
+      defaultValue: "Bronze",
+      taskLabel: "Label tier",
+      conditional: "adeActionTier"
+    },
+    adeReleaseYear: { id: "adeReleaseYearInput", label: "Release year (YY)", placeholder: "26", taskLabel: "Release year", conditional: "adeActionBackport" },
+    adeReleaseMonth: { id: "adeReleaseMonthInput", label: "Release month (MM)", placeholder: "10", taskLabel: "Release month", conditional: "adeActionBackport" },
+    adeBronzeBug: { id: "adeBronzeBugInput", label: "Bronze bug number", placeholder: "39913852", taskLabel: "Bronze bug", conditional: "adeActionBronzeBug" },
+    adeReadme: { id: "adeReadmeInput", label: "README_BUGFIX_FUNCT_DESC", type: "textarea", rows: 3, taskLabel: "README_BUGFIX_FUNCT_DESC", conditional: "adeActionBackport" },
+    adeExplanation: { id: "adeExplanationInput", label: "BugSmart functional/technical explanation", type: "textarea", rows: 3, taskLabel: "Explanation", conditional: "adeActionNonBackport" },
+    adeCreateView: { id: "adeCreateViewInput", label: "Create a new ADE view?", type: "select", options: ["Y", "N"], defaultValue: "Y", taskLabel: "Create view", conditional: "adeActionSetup" },
+    adeExistingView: { id: "adeExistingViewInput", label: "Existing ADE view name", taskLabel: "Existing view", conditional: "adeActionExistingView" },
+    adeCreateBug: { id: "adeCreateBugInput", label: "Create a new BugDB bug?", type: "select", options: ["Y", "N"], defaultValue: "Y", taskLabel: "Create bug", conditional: "adeActionSetup" },
+    adeExistingBug: { id: "adeExistingBugInput", label: "Existing BugDB bug number", taskLabel: "Existing bug", conditional: "adeActionExistingBug" },
+    adeBugSubject: { id: "adeBugSubjectInput", label: "Bug subject", type: "textarea", rows: 2, taskLabel: "Bug subject", conditional: "adeActionBugSubject" },
     bugNumber: {
       id: "bugNumberInput",
       label: "Bug number",
@@ -1280,6 +1373,15 @@
     var operation = selectedOperation();
     var backportCheckSourceType = inputValue("backportCheckSourceType") || "ADE";
     var backportCheckBypass = inputValue("backportCheckSafeBypass") === "Y";
+    if (workflow && workflow.id === "ade-actions") {
+      Array.prototype.forEach.call(els.dynamicFields.querySelectorAll("[data-conditional]"), function (field) {
+        var conditional = field.getAttribute("data-conditional");
+        var show = adeActionConditionVisible(conditional);
+        field.hidden = !show;
+        field.style.display = show ? "" : "none";
+      });
+      return;
+    }
     if (workflow && workflow.id === "custom" && operation && operation.id === "copy-person-data") {
       ensureStagingDefaults();
       return;
@@ -1341,6 +1443,33 @@
       field.hidden = !show;
       field.style.display = show ? "" : "none";
     });
+  }
+
+  function adeActionConditionVisible(conditional) {
+    var action = inputValue("adeAction") || "refreshview";
+    var setup = action === "setup_transaction";
+    var backport = inputValue("adeBackport") === "Y";
+    var tier = inputValue("adeTier") || "Bronze";
+    if (!conditional) { return true; }
+    if (conditional === "adeActionView") { return !setup; }
+    if (conditional === "adeActionBug") { return action === "mergereq" || action === "pmc"; }
+    if (conditional === "adeActionMergereq") { return action === "mergereq"; }
+    if (conditional === "adeActionCustom") { return action === "customade"; }
+    if (conditional === "adeActionOraReview") { return action === "submit_orareview"; }
+    if (conditional === "adeActionSetup") { return setup; }
+    if (conditional === "adeActionTier") { return setup && !backport; }
+    if (conditional === "adeActionBackport") { return setup && backport; }
+    if (conditional === "adeActionBronzeBug") { return setup && (backport || tier === "Silver"); }
+    if (conditional === "adeActionNonBackport") { return setup && !backport; }
+    if (conditional === "adeActionExistingView") { return setup && inputValue("adeCreateView") === "N"; }
+    if (conditional === "adeActionExistingBug") { return setup && inputValue("adeCreateBug") === "N"; }
+    if (conditional === "adeActionBugSubject") { return setup && inputValue("adeCreateBug") === "Y"; }
+    return true;
+  }
+
+  function adeActionFieldVisible(fieldName) {
+    var spec = fieldSpecs[fieldName] || {};
+    return adeActionConditionVisible(spec.conditional || "");
   }
 
   function operationSelectHtml(workflow) {
@@ -1787,6 +1916,9 @@
     if (!workflow) {
       return false;
     }
+    if (workflow.id === "ade-actions") {
+      return false;
+    }
     if (workflow.id === "custom" && operation && operation.id === "custom") {
       return false;
     }
@@ -1921,6 +2053,9 @@
       if (fieldSpecs[fieldName] && fieldSpecs[fieldName].type === "note") {
         return;
       }
+      if (workflow && workflow.id === "ade-actions" && !adeActionFieldVisible(fieldName)) {
+        return;
+      }
       if (workflow && workflow.id === "alm-backport" && (fieldName === "releaseYear" || fieldName === "releaseMonth")) {
         return;
       }
@@ -2032,6 +2167,9 @@
   function buildCommandLines() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
+    if (workflow && workflow.id === "ade-actions") {
+      return buildAdeActionCommandLines();
+    }
     if (workflow && workflow.id === "custom" && operation && operation.id === "backport-check") {
       return buildBackportCheckCommandLines();
     }
@@ -2061,6 +2199,31 @@
             }
           });
         }
+      });
+    });
+    return lines;
+  }
+
+  function buildAdeActionCommandLines() {
+    var mappings = [
+      ["action", "adeAction"], ["view", "adeView"], ["bug", "adeBug"],
+      ["manual_prompts", "adeManualPrompts"], ["custom_commands", "adeCustomCommands"],
+      ["transaction_description", "adeTransactionDescription"], ["backport", "adeBackport"],
+      ["tier", "adeTier"], ["release_year", "adeReleaseYear"], ["release_month", "adeReleaseMonth"],
+      ["bronze_bug", "adeBronzeBug"], ["readme", "adeReadme"], ["explanation", "adeExplanation"],
+      ["create_view", "adeCreateView"], ["existing_view", "adeExistingView"],
+      ["create_bug", "adeCreateBug"], ["existing_bug", "adeExistingBug"], ["bug_subject", "adeBugSubject"]
+    ];
+    var lines = ["Commands:", "- command: ade.run-action-workflow"];
+    mappings.forEach(function (mapping) {
+      var param = mapping[0];
+      var fieldName = mapping[1];
+      var value = inputValue(fieldName);
+      if (!value || !adeActionFieldVisible(fieldName)) {
+        return;
+      }
+      value.split(/\r?\n/).forEach(function (line, index) {
+        lines.push((index === 0 ? "  " + param + ": " : "    ") + line);
       });
     });
     return lines;
@@ -2199,6 +2362,10 @@
     }
 
     var operation = selectedOperation();
+    if (workflow.id === "ade-actions") {
+      validateAdeActionInputs();
+      return;
+    }
     if (workflow.id === "custom" && operation && operation.id === "copy-person-data") {
       updateStagingUrlFromEnvironment();
       if (!inputValue("personIdentifier")) {
@@ -2361,6 +2528,61 @@
     var month = inputValue("releaseMonth").trim();
     if (["01", "04", "07", "10"].indexOf(month) === -1) {
       throw new Error("Release month must be 01, 04, 07, or 10.");
+    }
+  }
+
+  function validateAdeActionInputs() {
+    var action = inputValue("adeAction");
+    var actions = ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction"];
+    if (actions.indexOf(action) === -1) {
+      throw new Error("Select a valid ADE action.");
+    }
+    if (action !== "setup_transaction" && !/^[A-Za-z0-9_.-]+$/.test(inputValue("adeView"))) {
+      throw new Error("Enter a valid ADE view.");
+    }
+    if (inputValue("adeBug") && !/^[0-9]{7,10}$/.test(inputValue("adeBug"))) {
+      throw new Error("Bug number must contain 7 to 10 digits.");
+    }
+    if (action === "customade" && !inputValue("adeCustomCommands")) {
+      throw new Error("Enter at least one custom ADE command.");
+    }
+    if (action === "submit_orareview" && !inputValue("adeTransactionDescription")) {
+      throw new Error("Enter Transaction description.");
+    }
+    if (action !== "setup_transaction") {
+      return;
+    }
+    var backport = inputValue("adeBackport") === "Y";
+    var tier = inputValue("adeTier") || "Bronze";
+    if (backport) {
+      if (!/^[0-9]{2}$/.test(inputValue("adeReleaseYear"))) {
+        throw new Error("Release year must contain two digits.");
+      }
+      if (!/^(0[1-9]|1[0-2])$/.test(inputValue("adeReleaseMonth"))) {
+        throw new Error("Release month must be 01 through 12.");
+      }
+      if (!inputValue("adeReadme")) {
+        throw new Error("Enter README_BUGFIX_FUNCT_DESC.");
+      }
+    } else {
+      if (["Bronze", "Silver"].indexOf(tier) === -1) {
+        throw new Error("Label tier must be Bronze or Silver.");
+      }
+      if (!inputValue("adeExplanation")) {
+        throw new Error("Enter BugSmart functional/technical explanation.");
+      }
+    }
+    if ((backport || tier === "Silver") && !/^[0-9]{7,10}$/.test(inputValue("adeBronzeBug"))) {
+      throw new Error("Bronze bug number must contain 7 to 10 digits.");
+    }
+    if (inputValue("adeCreateView") === "N" && !/^[A-Za-z0-9_.-]+$/.test(inputValue("adeExistingView"))) {
+      throw new Error("Enter Existing ADE view name.");
+    }
+    if (inputValue("adeCreateBug") === "N" && !/^[0-9]{7,10}$/.test(inputValue("adeExistingBug"))) {
+      throw new Error("Existing BugDB bug number must contain 7 to 10 digits.");
+    }
+    if (!backport && tier === "Bronze" && inputValue("adeCreateBug") === "Y" && !inputValue("adeBugSubject")) {
+      throw new Error("Enter Bug subject for a new Bronze bug.");
     }
   }
 
