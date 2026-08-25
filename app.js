@@ -5,7 +5,7 @@
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
   var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260825-bip-import-export";
+  var ASSET_VERSION = "20260825-ade-views-bip-multi";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -217,8 +217,8 @@
     },
     adeBipItem: {
       id: "adeBipItemInput",
-      label: "BIP data model or report",
-      type: "select",
+      label: "BIP data models or reports",
+      type: "multiselect",
       options: ["LocalAndGlobalTransferPostApproval", "LocalAndGlobalTransfer", "ManageContracts", "ManageContractsPostApproval", "EmploymentCreateProcesses", "ChangeWorkerType", "ChangeWorkerTypePostApproval", "AdditionalAssignmentInfo", "AdditionalAssignmentInfoPostApproval", "LocalAndGlobalTransferReport", "LocalAndGlobalTransferReportPostApproval", "ManageAssignmentEFFReport", "ManageAssignmentEFFReportPostApproval", "ManageContractsReport", "ManageContractsReportPostApproval", "ChangeWorkerTypeReport", "ChangeWorkerTypeReportPostApproval", "AddAssignmentReport"],
       taskLabel: "BIP item",
       conditional: "adeActionBip"
@@ -1562,6 +1562,18 @@
         "</label>"
       ].join("");
     }
+    if (spec.type === "multiselect") {
+      return [
+        '<label class="field"' + fieldAttrs + '>',
+        "<span>" + escapeHtml(spec.label) + "</span>",
+        '<select id="' + spec.id + '" multiple size="' + Math.min(Math.max((spec.options || []).length, 4), 10) + '">',
+        (spec.options || []).map(function (option) {
+          return '<option value="' + escapeHtml(option) + '">' + escapeHtml(option) + "</option>";
+        }).join(""),
+        "</select>",
+        "</label>"
+      ].join("");
+    }
     if (spec.type === "checkbox") {
       var checked = spec.defaultValue === "Y" || spec.defaultValue === true ? " checked" : "";
       return [
@@ -2022,6 +2034,13 @@
     }
     if (spec && spec.type === "checkbox") {
       return element.checked ? "Y" : "N";
+    }
+    if (element.multiple) {
+      return Array.prototype.filter.call(element.options, function (option) {
+        return option.selected;
+      }).map(function (option) {
+        return option.value;
+      }).join(",");
     }
     return element.value.trim();
   }
@@ -2581,7 +2600,7 @@
         throw new Error("Select export or import.");
       }
       if (!inputValue("adeBipItem")) {
-        throw new Error("Select a BIP data model or report.");
+        throw new Error("Select one or more BIP data models or reports.");
       }
       if (!/^https:\/\/[A-Za-z0-9.-]+(?::[0-9]+)?(?:\/\S*)?$/.test(inputValue("adeBipUrl"))) {
         throw new Error("Enter a valid HTTPS environment URL.");
