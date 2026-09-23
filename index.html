@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Codex Trigger Console</title>
     <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./chat.css?v=20260923">
   </head>
   <body>
     <main class="shell">
@@ -16,7 +17,12 @@
         <div class="status-pill" id="statusPill">Ready</div>
       </section>
 
-      <section class="workspace" aria-label="Trigger builder">
+      <nav class="console-tabs" aria-label="Console sections">
+        <button id="triggerTab" type="button" aria-pressed="true" aria-controls="triggerPanel">Triggers</button>
+        <button id="chatTab" type="button" aria-pressed="false" aria-controls="chatPanel">Chat</button>
+      </nav>
+
+      <section id="triggerPanel" class="workspace" aria-label="Trigger builder">
         <aside class="project-pane" aria-label="Workflow selection">
           <div class="pane-heading">
             <h2>Workflows</h2>
@@ -43,7 +49,7 @@
             <label class="field">
               <span>Model</span>
               <select id="modelPresetSelect">
-                <option value="cheap-default">GPT-5.6 Luna Medium</option>
+                <option value="cheap-default">GPT-5.6 Sol Medium</option>
                 <option value="gpt-5.5-priority">GPT-5.5 Priority</option>
               </select>
             </label>
@@ -87,8 +93,44 @@
           <pre id="issuePreview"></pre>
         </aside>
       </section>
+
+      <section id="chatPanel" hidden aria-label="Chat with your VM">
+        <div class="chat-intro">
+          <div><h2>Chat with your VM</h2><p>Send a message from anywhere. Your VM runs the work and replies here.</p></div>
+          <span id="chatConnection" class="status-pill">Disconnected</span>
+        </div>
+        <form id="chatConnectForm" class="chat-connect">
+          <label class="field"><span>Runner</span><select id="chatRunner" required></select></label>
+          <label class="field"><span>GitHub token</span><input id="chatToken" type="password" autocomplete="off" spellcheck="false" required placeholder="Fine-grained token for this private repository" aria-describedby="chatTokenHelp"></label>
+          <button id="chatConnect" class="primary-button" type="submit">Connect</button>
+        </form>
+        <p id="chatTokenHelp" class="chat-help">Use a fine-grained GitHub token with Issues: read and write for the selected private repository. It stays in this tab's memory and is cleared on disconnect or reload. Your VM password is not needed.</p>
+        <p id="chatNotice" class="chat-notice" role="status" aria-live="polite"></p>
+        <div id="chatWorkspace" class="chat-workspace" hidden>
+          <aside class="chat-sidebar" aria-label="Conversations">
+            <div class="chat-actions"><button id="chatNew" type="button" class="primary-button">New chat</button><button id="chatRefresh" type="button" class="secondary-button">Refresh</button></div>
+            <div id="chatConversations" class="chat-conversations"></div>
+            <button id="chatMore" type="button" class="secondary-button" hidden>Load older conversations</button>
+            <button id="chatDisconnect" type="button" class="secondary-button">Disconnect</button>
+          </aside>
+          <section class="chat-thread" aria-label="Current conversation">
+            <div class="chat-thread-heading"><div><h3 id="chatTitle">New conversation</h3><p id="chatRunStatus">Ready for your message</p></div><a id="chatIssueLink" target="_blank" rel="noopener noreferrer" hidden>Open in GitHub</a></div>
+            <div id="chatNewSettings" class="form-grid">
+              <label class="field"><span>Work context</span><select id="chatProject"></select></label>
+              <label class="field"><span>Model</span><select id="chatModel"></select></label>
+            </div>
+            <div id="chatMessages" class="chat-messages" aria-label="Messages" tabindex="0"><p class="chat-empty">Describe what you need. Each conversation stays in its own private GitHub issue.</p></div>
+            <form id="chatSendForm" class="chat-composer">
+              <label class="field"><span>Message</span><textarea id="chatMessage" rows="4" maxlength="50000" required placeholder="Ask Codex to investigate, explain, or work on a task…"></textarea></label>
+              <div class="chat-actions"><button id="chatSend" type="submit" class="primary-button">Send</button><span id="chatComposerHint" class="chat-help">Replies refresh every 15 seconds while Chat is open.</span></div>
+            </form>
+          </section>
+        </div>
+      </section>
     </main>
 
     <script src="./app.js?v=20260825-prearu-setup"></script>
+    <script src="./chat-api.js?v=20260923"></script>
+    <script src="./chat.js?v=20260923"></script>
   </body>
 </html>
