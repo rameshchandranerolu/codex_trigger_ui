@@ -30,8 +30,8 @@
 #chatMore { margin-bottom: 12px; }
 @media (max-width: 760px) {
   .chat-connect, .chat-workspace { grid-template-columns: 1fr; }
-  .chat-intro { align-items: flex-start; }
-  .chat-intro .status-pill { min-width: 0; }
+  .chat-intro { align-items: flex-start; flex-wrap: wrap; }
+  .chat-intro .status-pill { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
   .chat-conversations { max-height: 180px; }
   .chat-sidebar, .chat-thread { padding: 12px; }
   .chat-thread-heading { flex-wrap: wrap; }
