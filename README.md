@@ -24,10 +24,9 @@ the label in the issue screen, the generated `Queue: codex:queued` body line is
 still enough for the VM runner to pick up the trigger after the runner update is
 deployed.
 
-The Model selector writes `Codex-Model: <preset-id>` into the issue body. The
-default `cheap-default` preset uses GPT-5.6 Sol with medium reasoning and the current instant service tier, while
-`gpt-5.5-priority` is an explicit Pro preset for difficult debugging or code
-logic checks.
+Separate **Model** and **Effort** selectors write the existing `Codex-Model: <preset-id>`
+into the issue body. Current VM defaults to **gpt-6.1-sol + high**. Existing issue
+presets, including `cheap-default` and the explicit GPT-5.5 Priority choice, remain supported.
 
 It does not contain the VM runner, BugDB helpers, `config.json`, OAuth tokens,
 GitHub personal access tokens, or local ALM paths. The trigger console does not
@@ -90,11 +89,23 @@ on Current VM; other VMs need the matching runner code deployed.
 
 ## Model and reasoning effort
 
-On Current VM, `models.json` lists selectable models and supported reasoning
-levels from the native Codex catalog. The selector groups choices by model.
-The default remains GPT-5.6 Sol Medium; the existing GPT-5.5 High Priority
-preset remains available for compatibility. Mumbai and RAG retain their
-existing model choices until those runners are updated.
+On Current VM, `models.json` supplies recent models and the effort values each
+supports, including low, medium, high, xhigh, max, and ultra when available.
+The default is `gpt-6.1-sol-high`: model `gpt-6.1-sol` and effort `high`.
+Changing Model updates Effort to show only supported combinations. Model, effort,
+workflow, and project selections persist across reloads. Switching runners uses
+that runner's own model default; Mumbai and RAG retain their existing choices.
+
+The page fetches the published catalog on load. **Refresh models** reloads that
+published catalog and preserves the draft and any still-valid selection. If the
+catalog cannot load, Current VM submissions wait for a successful refresh;
+there is no silent downgrade to another model. Refresh failures retain existing
+choices and show friendly retry guidance.
+
+The catalog is a public, credential-free snapshot generated on the VM, rather
+than a browser connection to the VM. To update the snapshot from native Codex,
+run the sync command below, then publish the console. The sync preserves the
+previous catalog if the requested default is unavailable.
 
 Refresh the catalog in the private runner repo with
 `python3 scripts/sync_codex_models.py`, then publish the console. The runner

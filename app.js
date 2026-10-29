@@ -4,8 +4,10 @@
   var STORAGE_OWNER = "codexTrigger.owner";
   var STORAGE_REPO = "codexTrigger.repo";
   var STORAGE_RUNNER = "codexTrigger.runner";
-  var STORAGE_MODEL = "codexTrigger.modelPreset";
-  var ASSET_VERSION = "20260825-prearu-setup";
+  var STORAGE_WORKFLOW = "codexTrigger.workflow";
+  var STORAGE_PROJECT = "codexTrigger.project";
+  var STORAGE_MODEL = "codexTrigger.modelPreset.v2";
+  var ASSET_VERSION = "20261029-model-effort";
   var defaultProfileSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/HcmEmploymentCore/ProfileOptionSD.xml";
   var defaultMessageSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/MessageSD.xml";
   var defaultLookupSeedFile = "$AVR/fusionapps/hcm/per/db/data/HcmEmploymentTop/CommonLookupTypeSD.xml";
@@ -774,7 +776,10 @@
       "projectList",
       "selectedProjectLabel",
       "runnerSelect",
-      "modelPresetSelect",
+      "modelSelect",
+      "effortSelect",
+      "refreshModelsButton",
+      "modelCatalogStatus",
       "ownerInput",
       "repoInput",
       "dynamicFields",
@@ -801,12 +806,28 @@
         updatePreview();
       });
     }
-    if (els.modelPresetSelect) {
-      els.modelPresetSelect.addEventListener("change", function () {
-        state.selectedModelPresetId = els.modelPresetSelect.value;
+    if (els.modelSelect) {
+      els.modelSelect.addEventListener("change", function () {
+        var previous = selectedModelPreset();
+        var choices = state.modelPresets.filter(function (preset) { return preset.model === els.modelSelect.value; });
+        var chosen = choices.find(function (preset) { return previous && preset.reasoningEffort === previous.reasoningEffort; }) ||
+          choices.find(function (preset) { return preset.default; }) ||
+          choices.find(function (preset) { return preset.reasoningEffort === "high"; }) || choices[0];
+        state.selectedModelPresetId = chosen ? chosen.id : "";
+        renderModelSelectors();
         updatePreview();
       });
     }
+    if (els.effortSelect) {
+      els.effortSelect.addEventListener("change", function () {
+        var chosen = state.modelPresets.find(function (preset) {
+          return preset.model === els.modelSelect.value && preset.reasoningEffort === els.effortSelect.value;
+        });
+        state.selectedModelPresetId = chosen ? chosen.id : "";
+        updatePreview();
+      });
+    }
+    if (els.refreshModelsButton) els.refreshModelsButton.addEventListener("click", refreshAvailableModels);
 
     [
       els.ownerInput,
@@ -826,6 +847,8 @@
   function loadLocalSettings() {
     localStorage.removeItem("codexTrigger.githubToken");
     state.selectedRunnerId = localStorage.getItem(STORAGE_RUNNER) || "";
+    state.selectedWorkflowId = localStorage.getItem(STORAGE_WORKFLOW) || "";
+    state.selectedProjectAlias = localStorage.getItem(STORAGE_PROJECT) || "";
     state.selectedModelPresetId = localStorage.getItem(STORAGE_MODEL) || "";
     els.ownerInput.value = localStorage.getItem(STORAGE_OWNER) || "";
     els.repoInput.value = localStorage.getItem(STORAGE_REPO) || "";
@@ -876,11 +899,8 @@
         if (!runnerById(state.selectedRunnerId)) {
           state.selectedRunnerId = state.runners.length ? state.runners[0].id : "";
         }
-        if (!modelPresetById(state.selectedModelPresetId)) {
-          state.selectedModelPresetId = defaultModelPresetId();
-        }
         renderRunnerSelect();
-        renderModelPresetSelect();
+        renderModelSelectors();
         applySelectedRunner(false);
         if (!state.workflows.length) {
           throw new Error("projects.json must define workflows");
@@ -891,7 +911,8 @@
         if (!els.repoInput.value) {
           els.repoInput.value = config.github && config.github.repo ? config.github.repo : "";
         }
-        selectWorkflow(state.workflows[0].id);
+        selectWorkflow(state.workflows.some(function (workflow) { return workflow.id === state.selectedWorkflowId; }) ?
+          state.selectedWorkflowId : state.workflows[0].id);
         renderWorkflows();
         updateRepoLabel();
         updatePreview();
@@ -909,14 +930,12 @@
         if (!runnerById(state.selectedRunnerId)) {
           state.selectedRunnerId = state.runners.length ? state.runners[0].id : "";
         }
-        if (!modelPresetById(state.selectedModelPresetId)) {
-          state.selectedModelPresetId = defaultModelPresetId();
-        }
         renderRunnerSelect();
-        renderModelPresetSelect();
+        renderModelSelectors();
         applySelectedRunner(false);
         state.selectedCommands = [];
-        selectWorkflow(state.workflows[0].id);
+        selectWorkflow(state.workflows.some(function (workflow) { return workflow.id === state.selectedWorkflowId; }) ?
+          state.selectedWorkflowId : state.workflows[0].id);
         renderWorkflows();
         updateRepoLabel();
         updatePreview();
@@ -1140,12 +1159,37 @@
     var base = codexModelPresets(state.config || fallbackConfig);
     var catalog = state.availableModels || {};
     var available = (catalog.runnerIds || []).indexOf(state.selectedRunnerId) >= 0 ? catalog.codexModelPresets || [] : [];
-    var ids = available.map(function (preset) { return preset.id; });
-    state.modelPresets = codexModelPresets({codexModelPresets: available.concat(base.filter(function (preset) {
-      return ids.indexOf(preset.id) < 0;
-    }))});
-    if (!modelPresetById(state.selectedModelPresetId)) state.selectedModelPresetId = defaultModelPresetId();
-    renderModelPresetSelect();
+    var runnerChanged = state.modelRunnerId && state.modelRunnerId !== state.selectedRunnerId;
+    var requiredDefault = catalog.defaultPresetId || "gpt-6.1-sol-high";
+    if (state.selectedRunnerId === "current" && !available.some(function (preset) { return preset.id === requiredDefault; })) {
+      state.modelPresets = [];
+    } else {
+      state.modelPresets = codexModelPresets({codexModelPresets: available.length ? available : base});
+    }
+    if (runnerChanged || !modelPresetById(state.selectedModelPresetId)) state.selectedModelPresetId = defaultModelPresetId();
+    state.modelRunnerId = state.selectedRunnerId;
+    renderModelSelectors();
+  }
+
+  function refreshAvailableModels() {
+    els.refreshModelsButton.disabled = true;
+    els.modelCatalogStatus.textContent = "Refreshing models...";
+    fetch(assetUrl("./models.json"), {cache: "no-store"}).then(function (response) {
+      if (!response.ok) throw new Error("Model list unavailable");
+      return response.json();
+    }).then(function (catalog) {
+      var choices = catalog.codexModelPresets;
+      if (!Array.isArray(catalog.runnerIds) || catalog.runnerIds.indexOf("current") < 0 ||
+          !Array.isArray(choices) || !choices.some(function (preset) { return preset.id === "gpt-6.1-sol-high"; })) {
+        throw new Error("Model list unavailable");
+      }
+      state.availableModels = catalog;
+      refreshModelPresets();
+      updatePreview();
+      els.modelCatalogStatus.textContent = "Models refreshed.";
+    }).catch(function () {
+      els.modelCatalogStatus.textContent = "Could not refresh models. Your current choices are unchanged. Try again.";
+    }).finally(function () { els.refreshModelsButton.disabled = false; });
   }
 
   function defaultModelPresetId() {
@@ -1170,23 +1214,31 @@
     els.runnerSelect.value = state.selectedRunnerId;
   }
 
-  function renderModelPresetSelect() {
-    if (!els.modelPresetSelect) {
-      return;
-    }
-    var groups = {};
+  function renderModelSelectors() {
+    if (!els.modelSelect || !els.effortSelect) return;
+    var selected = selectedModelPreset();
+    var models = [];
     state.modelPresets.forEach(function (preset) {
-      if (!groups[preset.model]) groups[preset.model] = [];
-      groups[preset.model].push(preset);
+      if (models.indexOf(preset.model) < 0) models.push(preset.model);
     });
-    els.modelPresetSelect.innerHTML = Object.keys(groups).map(function (model) {
-      return '<optgroup label="' + escapeHtml(model) + '">' + groups[model].map(function (preset) {
-        var selected = preset.id === state.selectedModelPresetId ? " selected" : "";
-        var label = preset.label + (preset.id === "gpt-5.5-priority" ? " — High" : "");
-        return '<option value="' + escapeHtml(preset.id) + '"' + selected + '>' + escapeHtml(label) + '</option>';
-      }).join("") + '</optgroup>';
-    }).join("");
-    els.modelPresetSelect.value = state.selectedModelPresetId;
+    els.modelSelect.innerHTML = models.length ? models.map(function (model) {
+      var priority = state.modelPresets.filter(function (preset) { return preset.model === model; }).every(function (preset) {
+        return preset.serviceTier === "priority";
+      });
+      return '<option value="' + escapeHtml(model) + '">' + escapeHtml(model + (priority ? " (Priority)" : "")) + '</option>';
+    }).join("") : '<option value="">Models unavailable</option>';
+    els.modelSelect.value = selected ? selected.model : "";
+    var efforts = [];
+    state.modelPresets.forEach(function (preset) {
+      if (selected && preset.model === selected.model && efforts.indexOf(preset.reasoningEffort) < 0) efforts.push(preset.reasoningEffort);
+    });
+    els.effortSelect.innerHTML = efforts.length ? efforts.map(function (effort) {
+      return '<option value="' + escapeHtml(effort) + '">' + escapeHtml(effort) + '</option>';
+    }).join("") : '<option value="">Select a model</option>';
+    els.effortSelect.value = selected ? selected.reasoningEffort : "";
+    els.modelSelect.disabled = !selected;
+    els.effortSelect.disabled = !selected;
+    if (els.modelCatalogStatus) els.modelCatalogStatus.textContent = selected ? "" : "Model choices are unavailable. Refresh the model list to continue.";
   }
 
   function selectedRunner() {
@@ -2439,6 +2491,8 @@
     localStorage.setItem(STORAGE_OWNER, els.ownerInput.value.trim());
     localStorage.setItem(STORAGE_REPO, els.repoInput.value.trim());
     localStorage.setItem(STORAGE_RUNNER, state.selectedRunnerId);
+    localStorage.setItem(STORAGE_WORKFLOW, state.selectedWorkflowId);
+    localStorage.setItem(STORAGE_PROJECT, state.selectedProjectAlias);
     localStorage.setItem(STORAGE_MODEL, state.selectedModelPresetId);
   }
 

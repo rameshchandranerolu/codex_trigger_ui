@@ -1,10 +1,59 @@
 {
   "source": "Native Codex model catalog",
-  "updatedAt": "2026-09-23T12:04:58.231165+00:00",
+  "updatedAt": "2026-10-29T08:58:41.603709+00:00",
   "runnerIds": [
     "current"
   ],
+  "defaultPresetId": "gpt-6.1-sol-high",
   "codexModelPresets": [
+    {
+      "id": "gpt-6.1-sol-low",
+      "label": "GPT-6.1-Sol \u2014 Low",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "low",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6.1-sol-medium",
+      "label": "GPT-6.1-Sol \u2014 Medium",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "medium",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6.1-sol-high",
+      "label": "GPT-6.1-Sol \u2014 High",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "high",
+      "serviceTier": "instant",
+      "default": true
+    },
+    {
+      "id": "gpt-6.1-sol-xhigh",
+      "label": "GPT-6.1-Sol \u2014 Extra High",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "xhigh",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6.1-sol-max",
+      "label": "GPT-6.1-Sol \u2014 Max",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "max",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6.1-sol-ultra",
+      "label": "GPT-6.1-Sol \u2014 Ultra",
+      "model": "gpt-6.1-sol",
+      "reasoningEffort": "ultra",
+      "serviceTier": "instant",
+      "default": false
+    },
     {
       "id": "gpt-6-astra-low",
       "label": "GPT-6-Astra \u2014 Low",
@@ -54,6 +103,94 @@
       "default": false
     },
     {
+      "id": "gpt-6-sol-low",
+      "label": "GPT-6-Sol \u2014 Low",
+      "model": "gpt-6-sol",
+      "reasoningEffort": "low",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-sol-medium",
+      "label": "GPT-6-Sol \u2014 Medium",
+      "model": "gpt-6-sol",
+      "reasoningEffort": "medium",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-sol-high",
+      "label": "GPT-6-Sol \u2014 High",
+      "model": "gpt-6-sol",
+      "reasoningEffort": "high",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-sol-xhigh",
+      "label": "GPT-6-Sol \u2014 Extra High",
+      "model": "gpt-6-sol",
+      "reasoningEffort": "xhigh",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-sol-max",
+      "label": "GPT-6-Sol \u2014 Max",
+      "model": "gpt-6-sol",
+      "reasoningEffort": "max",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-sol-ultra",
+      "label": "GPT-6-Sol \u2014 Ultra",
+      "model": "gpt-6-sol",
+      "reasoningEffort": "ultra",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-luna-low",
+      "label": "GPT-6-Luna \u2014 Low",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "low",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-luna-medium",
+      "label": "GPT-6-Luna \u2014 Medium",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "medium",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-luna-high",
+      "label": "GPT-6-Luna \u2014 High",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "high",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-luna-xhigh",
+      "label": "GPT-6-Luna \u2014 Extra High",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "xhigh",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
+      "id": "gpt-6-luna-max",
+      "label": "GPT-6-Luna \u2014 Max",
+      "model": "gpt-6-luna",
+      "reasoningEffort": "max",
+      "serviceTier": "instant",
+      "default": false
+    },
+    {
       "id": "gpt-5.6-sol-low",
       "label": "GPT-5.6-Sol \u2014 Low",
       "model": "gpt-5.6-sol",
@@ -67,7 +204,7 @@
       "model": "gpt-5.6-sol",
       "reasoningEffort": "medium",
       "serviceTier": "instant",
-      "default": true
+      "default": false
     },
     {
       "id": "gpt-5.6-sol-high",
@@ -186,38 +323,6 @@
       "label": "GPT-5.6-Luna \u2014 Max",
       "model": "gpt-5.6-luna",
       "reasoningEffort": "max",
-      "serviceTier": "instant",
-      "default": false
-    },
-    {
-      "id": "gpt-5.5-low",
-      "label": "GPT-5.5 \u2014 Low",
-      "model": "gpt-5.5",
-      "reasoningEffort": "low",
-      "serviceTier": "instant",
-      "default": false
-    },
-    {
-      "id": "gpt-5.5-medium",
-      "label": "GPT-5.5 \u2014 Medium",
-      "model": "gpt-5.5",
-      "reasoningEffort": "medium",
-      "serviceTier": "instant",
-      "default": false
-    },
-    {
-      "id": "gpt-5.5-high",
-      "label": "GPT-5.5 \u2014 High",
-      "model": "gpt-5.5",
-      "reasoningEffort": "high",
-      "serviceTier": "instant",
-      "default": false
-    },
-    {
-      "id": "gpt-5.5-xhigh",
-      "label": "GPT-5.5 \u2014 Extra High",
-      "model": "gpt-5.5",
-      "reasoningEffort": "xhigh",
       "serviceTier": "instant",
       "default": false
     }

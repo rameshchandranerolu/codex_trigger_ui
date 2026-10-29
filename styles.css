@@ -586,3 +586,10 @@ button {
     width: 100%;
   }
 }
+
+/* Model and effort controls remain usable on mobile. */
+#modelSelect,
+#effortSelect,
+#refreshModelsButton {
+  min-height: 44px;
+}

@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Codex Trigger Console</title>
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./styles.css?v=20261029-model-effort">
   </head>
   <body>
     <main class="shell">
@@ -41,12 +41,22 @@
               <select id="runnerSelect"></select>
             </label>
             <label class="field">
-              <span>Model / reasoning effort</span>
-              <select id="modelPresetSelect">
-                <option value="cheap-default">GPT-5.6 Sol Medium</option>
-                <option value="gpt-5.5-priority">GPT-5.5 Priority</option>
+              <span>Model</span>
+              <select id="modelSelect" disabled aria-describedby="modelCatalogStatus">
+                <option value="">Loading models...</option>
               </select>
             </label>
+            <label class="field">
+              <span>Effort</span>
+              <select id="effortSelect" disabled>
+                <option value="">Select a model</option>
+              </select>
+            </label>
+            <div class="field">
+              <span>Model choices</span>
+              <button type="button" class="secondary-button" id="refreshModelsButton">Refresh models</button>
+              <span id="modelCatalogStatus" role="status" aria-live="polite"></span>
+            </div>
             <label class="field">
               <span>GitHub owner</span>
               <input id="ownerInput" autocomplete="off" spellcheck="false">
@@ -90,6 +100,6 @@
 
     </main>
 
-    <script src="./app.js?v=20260923-direct-models"></script>
+    <script src="./app.js?v=20261029-model-effort"></script>
   </body>
 </html>
