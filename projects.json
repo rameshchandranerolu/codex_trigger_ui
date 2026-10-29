@@ -123,14 +123,15 @@
       "id": "project",
       "name": "Project Work",
       "kind": "Local Project",
-      "description": "Inspect, fix, or test a configured local ALM checkout.",
+      "description": "Inspect, fix, or test a configured local Git checkout.",
       "requiresProject": true,
       "projectAliases": [
         "employment-process-ui",
         "employment-other-ui",
         "employment-common-ui",
         "employment-public-ui",
-        "employment-all"
+        "employment-all",
+        "agent-orchestrator-poc"
       ],
       "context": "Local project workflow. Work only in the selected local project path unless the task explicitly widens scope. For employment-* ALM Git project paths, runtime prompts inject shared ALM Git mechanics from runner_common/alm_git_workflow.py; do not duplicate those command rules here.",
       "operations": [
@@ -485,6 +486,13 @@
       "kind": "Project Group",
       "description": "Parent folder for multiple employment UI projects.",
       "context": "Use the employment-all aggregate context when the task needs to compare or search across employment-process-ui, employment-other-ui, employment-common-ui, and employment-public-ui."
+    },
+    {
+      "alias": "agent-orchestrator-poc",
+      "name": "agent-orchestrator-poc",
+      "kind": "Hobby Project",
+      "description": "Coding-agent orchestration proof of concept using a treasure-hunt example.",
+      "context": "Use the agent-orchestrator-poc GitHub checkout and its AGENTS.md instructions. This is a personal hobby project using a treasure-hunt example. Use native tools for requested file edits and tests. When the requester asks to commit and push, use normal commits and a non-force push to main; preserve unrelated work. Do not run ADE or ALM workflows for this project. The web app requires Node 24+ and npm 11+. Report missing dependencies or browser execution separately from passing source checks."
     }
   ]
 }
