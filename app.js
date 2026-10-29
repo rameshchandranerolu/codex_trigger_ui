@@ -46,8 +46,8 @@
     codexModelPresets: [
       {
         id: "cheap-default",
-        label: "GPT-5.6 Luna Medium",
-        model: "gpt-5.6-luna",
+        label: "GPT-5.6 Sol Medium",
+        model: "gpt-5.6-sol",
         reasoningEffort: "medium",
         serviceTier: "instant",
         default: true
@@ -72,7 +72,7 @@
           {
             id: "run-action",
             name: "Run ADE Action",
-            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeCustomCommands", "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl", "adeBackport", "adePrearu", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeBugSubject", "details"],
+            fields: ["adeAction", "adeView", "adeBug", "adeManualPrompts", "adeRunInCloud", "adeSubmitMergereq", "adeCloudPmcState", "adeCustomCommands", "adeTransactionDescription", "adeBipOperation", "adeBipItem", "adeBipUrl", "adeUpatchLabel", "adeBackport", "adePrearu", "adeTier", "adeReleaseYear", "adeReleaseMonth", "adeBronzeBug", "adeReadme", "adeExplanation", "adeCreateView", "adeExistingView", "adeCreateBug", "adeExistingBug", "adeIsEr", "adeBugSubject", "details"],
             requiredFields: ["adeAction"],
             titleField: "adeAction"
           }
@@ -162,7 +162,7 @@
       id: "adeActionInput",
       label: "Action",
       type: "select",
-      options: ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export"],
+      options: ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export", "apply_upatch_label"],
       defaultValue: "refreshview",
       taskLabel: "Action"
     },
@@ -188,6 +188,31 @@
       defaultValue: "N",
       taskLabel: "Manual prompts",
       conditional: "adeActionMergereq"
+    },
+    adeRunInCloud: {
+      id: "adeRunInCloudInput",
+      label: "Run PMC in cloud?",
+      type: "select",
+      options: ["Y", "N"],
+      defaultValue: "Y",
+      taskLabel: "Run in cloud",
+      conditional: "adeActionPmc"
+    },
+    adeSubmitMergereq: {
+      id: "adeSubmitMergereqInput",
+      label: "Submit MergeReq after successful PMC?",
+      type: "select",
+      options: ["N", "Y"],
+      defaultValue: "N",
+      taskLabel: "Submit MergeReq",
+      conditional: "adeActionPmc"
+    },
+    adeCloudPmcState: {
+      id: "adeCloudPmcStateInput",
+      label: "Cloud monitor state file (optional, resume)",
+      placeholder: "/scratch/rnerolu/codex-cloud-pmc/transaction.XXXXXX/state.json",
+      taskLabel: "Cloud monitor state file",
+      conditional: "adeActionCloudPmcResume"
     },
     adeCustomCommands: {
       id: "adeCustomCommandsInput",
@@ -230,6 +255,13 @@
       taskLabel: "Environment URL",
       conditional: "adeActionBip"
     },
+    adeUpatchLabel: {
+      id: "adeUpatchLabelInput",
+      label: "FusionApps label",
+      placeholder: "FUSIONAPPS_PT.V2MIBHCMBRONZE_LINUX.X64_260308.1301.S",
+      taskLabel: "FusionApps label",
+      conditional: "adeActionUpatchLabel"
+    },
     adeBackport: {
       id: "adeBackportInput",
       label: "Is this a backport?",
@@ -266,6 +298,7 @@
     adeExistingView: { id: "adeExistingViewInput", label: "Existing ADE view name", taskLabel: "Existing view", conditional: "adeActionExistingView" },
     adeCreateBug: { id: "adeCreateBugInput", label: "Create a new BugDB bug?", type: "select", options: ["Y", "N"], defaultValue: "Y", taskLabel: "Create bug", conditional: "adeActionSetup" },
     adeExistingBug: { id: "adeExistingBugInput", label: "Existing BugDB bug number", taskLabel: "Existing bug", conditional: "adeActionExistingBug" },
+    adeIsEr: { id: "adeIsErInput", label: "Is this an ER?", type: "select", options: ["Y", "N"], defaultValue: "Y", taskLabel: "ER", conditional: "adeActionNewBug" },
     adeBugSubject: { id: "adeBugSubjectInput", label: "Bug subject", type: "textarea", rows: 2, taskLabel: "Bug subject", conditional: "adeActionBugSubject" },
     bugNumber: {
       id: "bugNumberInput",
@@ -815,6 +848,9 @@
       }).catch(function () {
         return { commands: [] };
       }),
+      fetch(assetUrl("./models.json"), { cache: "no-store" }).then(function (response) {
+        return response.ok ? response.json() : {};
+      }).catch(function () { return {}; }),
       fetch(assetUrl("./seeddata_staging_environments.json"), { cache: "no-store" }).then(function (response) {
         if (!response.ok) {
           return {};
@@ -827,7 +863,8 @@
       .then(function (response) {
         var config = response[0];
         var commandConfig = response[1] || {};
-        var stagingConfig = response[2] || {};
+        var stagingConfig = response[3] || {};
+        state.availableModels = response[2] || {};
         state.config = config;
         state.workflows = Array.isArray(config.workflows) ? config.workflows : [];
         state.projects = Array.isArray(config.projects) ? config.projects : [];
@@ -1099,6 +1136,18 @@
     });
   }
 
+  function refreshModelPresets() {
+    var base = codexModelPresets(state.config || fallbackConfig);
+    var catalog = state.availableModels || {};
+    var available = (catalog.runnerIds || []).indexOf(state.selectedRunnerId) >= 0 ? catalog.codexModelPresets || [] : [];
+    var ids = available.map(function (preset) { return preset.id; });
+    state.modelPresets = codexModelPresets({codexModelPresets: available.concat(base.filter(function (preset) {
+      return ids.indexOf(preset.id) < 0;
+    }))});
+    if (!modelPresetById(state.selectedModelPresetId)) state.selectedModelPresetId = defaultModelPresetId();
+    renderModelPresetSelect();
+  }
+
   function defaultModelPresetId() {
     var found = state.modelPresets.find(function (preset) {
       return preset.default;
@@ -1125,9 +1174,17 @@
     if (!els.modelPresetSelect) {
       return;
     }
-    els.modelPresetSelect.innerHTML = state.modelPresets.map(function (preset) {
-      var selected = preset.id === state.selectedModelPresetId ? " selected" : "";
-      return '<option value="' + escapeHtml(preset.id) + '"' + selected + ">" + escapeHtml(preset.label) + "</option>";
+    var groups = {};
+    state.modelPresets.forEach(function (preset) {
+      if (!groups[preset.model]) groups[preset.model] = [];
+      groups[preset.model].push(preset);
+    });
+    els.modelPresetSelect.innerHTML = Object.keys(groups).map(function (model) {
+      return '<optgroup label="' + escapeHtml(model) + '">' + groups[model].map(function (preset) {
+        var selected = preset.id === state.selectedModelPresetId ? " selected" : "";
+        var label = preset.label + (preset.id === "gpt-5.5-priority" ? " — High" : "");
+        return '<option value="' + escapeHtml(preset.id) + '"' + selected + '>' + escapeHtml(label) + '</option>';
+      }).join("") + '</optgroup>';
     }).join("");
     els.modelPresetSelect.value = state.selectedModelPresetId;
   }
@@ -1190,6 +1247,7 @@
   }
 
   function applySelectedRunner(force) {
+    refreshModelPresets();
     var runner = selectedRunner();
     if (!runner) {
       return;
@@ -1284,6 +1342,12 @@
     els.selectedProjectLabel.textContent = operation ? workflow.id + " / " + operation.id : workflow.id;
   }
 
+  function requiresProjectChoice(workflow) {
+    var operation = selectedOperation();
+    return Boolean(workflow && workflow.requiresProject &&
+      !(workflow.id === "custom" && operation && operation.id === "custom"));
+  }
+
   function renderDynamicFields() {
     var workflow = selectedWorkflow();
     var operation = selectedOperation();
@@ -1297,7 +1361,7 @@
     if (workflowHasOperations(workflow)) {
       html += operationSelectHtml(workflow);
     }
-    if (workflow.requiresProject) {
+    if (requiresProjectChoice(workflow)) {
       html += projectSelectHtml();
     }
 
@@ -1484,12 +1548,15 @@
     var backport = inputValue("adeBackport") === "Y";
     var tier = inputValue("adeTier") || "Bronze";
     if (!conditional) { return true; }
-    if (conditional === "adeActionView") { return !setup; }
+    if (conditional === "adeActionView") { return !setup && action !== "apply_upatch_label"; }
     if (conditional === "adeActionBug") { return action === "mergereq" || action === "pmc"; }
     if (conditional === "adeActionMergereq") { return action === "mergereq"; }
+    if (conditional === "adeActionPmc") { return action === "pmc"; }
+    if (conditional === "adeActionCloudPmcResume") { return action === "pmc" && inputValue("adeRunInCloud") === "Y" && inputValue("adeSubmitMergereq") === "Y"; }
     if (conditional === "adeActionCustom") { return action === "customade"; }
     if (conditional === "adeActionOraReview") { return action === "submit_orareview"; }
     if (conditional === "adeActionBip") { return action === "bip_import_export"; }
+    if (conditional === "adeActionUpatchLabel") { return action === "apply_upatch_label"; }
     if (conditional === "adeActionSetup") { return setup; }
     if (conditional === "adeActionTier") { return setup && !backport; }
     if (conditional === "adeActionBackport") { return setup && backport; }
@@ -1497,11 +1564,15 @@
     if (conditional === "adeActionNonBackport") { return setup && !backport; }
     if (conditional === "adeActionExistingView") { return setup && inputValue("adeCreateView") === "N"; }
     if (conditional === "adeActionExistingBug") { return setup && inputValue("adeCreateBug") === "N"; }
+    if (conditional === "adeActionNewBug") { return setup && inputValue("adeCreateBug") === "Y"; }
     if (conditional === "adeActionBugSubject") { return setup && inputValue("adeCreateBug") === "Y"; }
     return true;
   }
 
   function adeActionFieldVisible(fieldName) {
+    if (inputValue("adeAction") === "apply_upatch_label" && fieldName === "details") {
+      return false;
+    }
     var spec = fieldSpecs[fieldName] || {};
     return adeActionConditionVisible(spec.conditional || "");
   }
@@ -2069,7 +2140,7 @@
     if (!primary && workflow && !workflowHasOperations(workflow)) {
       primary = firstLine(inputValue("instructions"));
     }
-    if (!primary && workflow && workflow.requiresProject) {
+    if (!primary && requiresProjectChoice(workflow)) {
       primary = state.selectedProjectAlias;
     }
     if (!primary) {
@@ -2261,13 +2332,16 @@
     var mappings = [
       ["action", "adeAction"], ["view", "adeView"], ["bug", "adeBug"],
       ["manual_prompts", "adeManualPrompts"], ["custom_commands", "adeCustomCommands"],
+      ["run_in_cloud", "adeRunInCloud"],
+      ["submit_mergereq", "adeSubmitMergereq"],
+      ["cloud_pmc_state", "adeCloudPmcState"],
       ["transaction_description", "adeTransactionDescription"],
-      ["bip_operation", "adeBipOperation"], ["bip_item", "adeBipItem"], ["bip_url", "adeBipUrl"],
+      ["bip_operation", "adeBipOperation"], ["bip_item", "adeBipItem"], ["bip_url", "adeBipUrl"], ["upatch_label", "adeUpatchLabel"],
       ["backport", "adeBackport"], ["prearu", "adePrearu"],
       ["tier", "adeTier"], ["release_year", "adeReleaseYear"], ["release_month", "adeReleaseMonth"],
       ["bronze_bug", "adeBronzeBug"], ["readme", "adeReadme"], ["explanation", "adeExplanation"],
       ["create_view", "adeCreateView"], ["existing_view", "adeExistingView"],
-      ["create_bug", "adeCreateBug"], ["existing_bug", "adeExistingBug"], ["bug_subject", "adeBugSubject"]
+      ["create_bug", "adeCreateBug"], ["existing_bug", "adeExistingBug"], ["is_er", "adeIsEr"], ["bug_subject", "adeBugSubject"]
     ];
     var lines = ["Commands:", "- command: ade.run-action-workflow"];
     mappings.forEach(function (mapping) {
@@ -2323,7 +2397,7 @@
       lines.push("Operation: " + operation.id);
     }
 
-    if (workflow && workflow.requiresProject) {
+    if (requiresProjectChoice(workflow)) {
       lines.push("Project: " + state.selectedProjectAlias);
     }
 
@@ -2391,7 +2465,7 @@
     if (!workflowHasOperations(workflow)) {
       requiredFields = ["instructions"];
     }
-    if (workflow.requiresProject && !state.selectedProjectAlias) {
+    if (requiresProjectChoice(workflow) && !state.selectedProjectAlias) {
       throw new Error("Select a project.");
     }
 
@@ -2592,7 +2666,7 @@
     if (actions.indexOf(action) === -1) {
       throw new Error("Select a valid ADE action.");
     }
-    if (action !== "setup_transaction" && !/^[A-Za-z0-9_.-]+$/.test(inputValue("adeView"))) {
+    if (["setup_transaction", "apply_upatch_label"].indexOf(action) === -1 && !/^[A-Za-z0-9_.-]+$/.test(inputValue("adeView"))) {
       throw new Error("Enter a valid ADE view.");
     }
     if (inputValue("adeBug") && !/^[0-9]{7,10}$/.test(inputValue("adeBug"))) {
@@ -2614,6 +2688,9 @@
       if (!/^https:\/\/[A-Za-z0-9.-]+(?::[0-9]+)?(?:\/\S*)?$/.test(inputValue("adeBipUrl"))) {
         throw new Error("Enter a valid HTTPS environment URL.");
       }
+    }
+    if (action === "apply_upatch_label" && !/^FUSIONAPPS_[A-Za-z0-9_.-]+$/.test(inputValue("adeUpatchLabel"))) {
+      throw new Error("Enter a valid complete FusionApps label.");
     }
     if (action !== "setup_transaction") {
       return;

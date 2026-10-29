@@ -13,15 +13,19 @@
         "Return any created bug, view, transaction, and BIP operation/item values for follow-up use."
       ],
       "parameters": [
-        {"name": "action", "label": "Action", "required": true, "options": ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export"]},
+        {"name": "action", "label": "Action", "required": true, "options": ["mergereq", "refreshview", "mergetransaction", "customade", "submit_orareview", "cleanview", "pmc", "setup_transaction", "bip_import_export", "apply_upatch_label"]},
         {"name": "view", "label": "ADE view", "required": false, "pattern": "^[A-Za-z0-9_.-]+$", "sequence_ref": true},
         {"name": "bug", "label": "Bug number", "required": false, "pattern": "^[0-9]{7,10}$", "sequence_ref": true},
         {"name": "manual_prompts", "required": false, "default": "N", "options": ["N", "Y"]},
+        {"name": "run_in_cloud", "label": "Run PMC in cloud?", "required": false, "default": "Y", "options": ["Y", "N"]},
+        {"name": "submit_mergereq", "label": "Submit MergeReq after successful PMC?", "required": false, "default": "N", "options": ["N", "Y"]},
+        {"name": "cloud_pmc_state", "label": "Cloud monitor state file (optional, resume)", "required": false, "pattern": "^/(?:scratch|home)/[A-Za-z0-9_./-]+\\.json$", "sequence_ref": true},
         {"name": "custom_commands", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
         {"name": "transaction_description", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"},
         {"name": "bip_operation", "required": false, "default": "export", "options": ["export", "import"]},
         {"name": "bip_item", "required": false, "multiple": true, "options": ["LocalAndGlobalTransferPostApproval", "LocalAndGlobalTransfer", "ManageContracts", "ManageContractsPostApproval", "EmploymentCreateProcesses", "ChangeWorkerType", "ChangeWorkerTypePostApproval", "AdditionalAssignmentInfo", "AdditionalAssignmentInfoPostApproval", "LocalAndGlobalTransferReport", "LocalAndGlobalTransferReportPostApproval", "ManageAssignmentEFFReport", "ManageAssignmentEFFReportPostApproval", "ManageContractsReport", "ManageContractsReportPostApproval", "ChangeWorkerTypeReport", "ChangeWorkerTypeReportPostApproval", "AddAssignmentReport"]},
         {"name": "bip_url", "required": false, "pattern": "^https://[A-Za-z0-9.-]+(?::[0-9]+)?(?:/\\S*)?$"},
+        {"name": "upatch_label", "label": "FusionApps label", "required": false, "pattern": "^FUSIONAPPS_[A-Za-z0-9_.-]+$"},
         {"name": "backport", "required": false, "default": "N", "options": ["N", "Y"]},
         {"name": "prearu", "required": false, "default": "N", "options": ["N", "Y"]},
         {"name": "tier", "required": false, "default": "Bronze", "options": ["Bronze", "Silver"]},
@@ -34,14 +38,19 @@
         {"name": "existing_view", "required": false, "pattern": "^[A-Za-z0-9_.-]+$", "sequence_ref": true},
         {"name": "create_bug", "required": false, "default": "Y", "options": ["Y", "N"]},
         {"name": "existing_bug", "required": false, "pattern": "^[0-9]{7,10}$", "sequence_ref": true},
+        {"name": "is_er", "label": "Is this an ER?", "required": false, "default": "Y", "options": ["Y", "N"]},
         {"name": "bug_subject", "type": "textarea", "required": false, "pattern": "^[\\s\\S]+$"}
       ],
       "outputs": {
+        "cloud_pmc_state": {"patterns": ["PMC_CLOUD_MONITOR_STATE file=([^\\r\\n]+)"]},
+        "pmc_status": {"patterns": ["PMC_CLOUD_VALIDATION_RESULT status=(PASS)", "PMC_CLOUD_(SUBMITTED)"]},
+        "mergereq_status": {"patterns": ["MERGEREQ_SUBMISSION_(COMPLETED|DEFERRED)"]},
         "bug": {"patterns": ["\\\"bug\\\"\\s*:\\s*\\\"([0-9]{7,10})\\\""]},
         "view": {"patterns": ["\\\"view\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]},
         "transaction": {"patterns": ["\\\"transaction\\\"\\s*:\\s*\\\"([A-Za-z0-9_.-]+)\\\""]},
         "bip_operation": {"patterns": ["\\\"bip_operation\\\"\\s*:\\s*\\\"(export|import)\\\""]},
-        "bip_item": {"patterns": ["\\\"bip_item\\\"\\s*:\\s*\\\"([A-Za-z0-9,]+)\\\""]}
+        "bip_item": {"patterns": ["\\\"bip_item\\\"\\s*:\\s*\\\"([A-Za-z0-9,]+)\\\""]},
+        "upatch_label": {"patterns": ["\\\"upatch_label\\\"\\s*:\\s*\\\"(FUSIONAPPS_[A-Za-z0-9_.-]+)\\\""]}
       }
     },
     {
@@ -665,7 +674,7 @@
         "Use this command for a normal ADE target transaction on an explicitly supplied PRE-ARU integration series. Do not replace that explicit flow with ade.begin-backport-transaction unless the requester actually asked for ADE begintrans -backport/RFI semantics.",
         "ADE fetchtrans, checkin, and savetrans are state-changing and must run in the parent through the checked-in RunInView.sh and ade_fetch_transaction.sh helpers.",
         "Verify the source transaction first. The helper refuses a missing target transaction, a source equal to the active target, or a target_transaction mismatch.",
-        "After fetchtrans it checks in any fetched files, saves the active target transaction, and verifies its diff before validation, README, closure, or OraReview."
+        "After fetchtrans it checks in any fetched files, saves the active target transaction, and verifies its diff before validation, README, closure, or OraReview. SeedData paths ending with SD.xml or SD.xlf are checked in explicitly with ade ci -no_update_hdr before any remaining non-SeedData files."
       ],
       "approval": {
         "required": true,
@@ -1193,13 +1202,19 @@
           "name": "fixby",
           "label": "Fix By",
           "required": false,
-          "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){4}$"
+          "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){4}$",
+          "normalization": {
+            "type": "fusion_release"
+          }
         },
         {
           "name": "component_version",
           "label": "Component Version",
           "required": false,
-          "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){4}$"
+          "pattern": "^[0-9]{1,2}(\\.[0-9]{1,2}){4}$",
+          "normalization": {
+            "type": "fusion_release"
+          }
         },
         {
           "name": "product_line_id",

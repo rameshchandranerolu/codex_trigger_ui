@@ -42,7 +42,25 @@ the terminal `run_ade_action.sh` menu and generates a validated
 in the private parent runner; the model is reserved for free-form parsing and
 response wording. The BIP option defaults to export, accepts multiple mapped Workflow
 Notifications reports/data models, and processes them sequentially in one ADE view
-session. Other BugDB and ADE requests can still use `Workflow: custom`.
+session. The uPatch label action asks only for a complete FusionApps label and reads
+the target database from `/scratch/<user>/codeshare/dbdetails.txt`. Label completion
+requires an explicit successful uPatch request summary as well as exit code zero.
+After a reported request failure or nonzero client exit, the shared helper checks
+that the patch queue is idle, gracefully restarts uPatch, then retries the same
+label once. Each client starts with a clean `SHLVL` to avoid shell-depth warnings
+corrupting downloader JSON. Active or unreadable queues and failed restarts stop
+recovery; missing request outcomes are reported as unconfirmed. Direct helper
+callers can pass `--no-restart-retry` to disable recovery. PMC defaults to
+cloud submission (`run_in_cloud: Y`); select N for the existing local PMC flow.
+Cloud PMC supports Bronze, Silver, Gold and V2MIB, saves the transaction, and reports
+submission separately from validation completion. With `submit_mergereq: Y` (default N),
+the script polls BugDB every minute while queued and every 15 minutes after PMC
+starts, for up to five hours, checks a fresh overall PASS
+report for that submission and verifies the transaction has not changed before the
+normal MergeReq preflight/submission. Monitor state is printed and retained for
+`--cloud-pmc-state <file> --submit-mergereq` resume without another cloud submission.
+Other BugDB and
+ADE requests can still use `Workflow: custom`.
 `Project:` is generated for workflows that require a selected local context.
 `commands.json` drives optional structured command entries that the private
 runner validates before execution.
@@ -56,7 +74,9 @@ issues; old `#chat` links display the trigger builder. Chat scripts are retained
 as inactive assets and are not loaded by the page.
 
 On **Current VM**, select **Custom Commands → Custom Instructions** for a
-plain-English request. **Project Work → Inspect, Fix, Test, or Custom Project
+plain-English request. No Project selection is needed: Codex starts in the
+automation workspace and receives the VM workspace map, then selects relevant
+ADE/VB/repository references from your request. **Project Work → Inspect, Fix, Test, or Custom Project
 Task** and **VB** also use direct Codex conversations when no structured
 `Commands:` sequence is supplied. Codex can consult runner guides as needed and
 returns its answer or question directly, without runner planning or completion
@@ -68,14 +88,27 @@ and explicit command sequences retain their specialized execution paths.
 RAG Study uses its separate RAG runner. The direct conversation update is active
 on Current VM; other VMs need the matching runner code deployed.
 
+## Model and reasoning effort
+
+On Current VM, `models.json` lists selectable models and supported reasoning
+levels from the native Codex catalog. The selector groups choices by model.
+The default remains GPT-5.6 Sol Medium; the existing GPT-5.5 High Priority
+preset remains available for compatibility. Mumbai and RAG retain their
+existing model choices until those runners are updated.
+
+Refresh the catalog in the private runner repo with
+`python3 scripts/sync_codex_models.py`, then publish the console. The runner
+validates the selected model and effort against its native catalog before
+execution and does not silently substitute another model.
+
 ## Publishing
 
 From the private automation repository, the existing export script commits and
-pushes the console. The legacy `chat` export mode updates the page, README, and
-inactive Chat assets while preserving the deployed trigger configuration:
+pushes the console. The `console` export mode updates the page, application, model list, README,
+and inactive Chat assets while preserving deployed workflow/command configuration:
 
 ```bash
-./scripts/export_trigger_ui.sh /path/to/console-checkout "Disable Chat tab" chat
+./scripts/export_trigger_ui.sh /path/to/console-checkout "Update direct Codex console" console
 ```
 
-Omit `chat` to export the full console.
+Omit the third argument to export the full console.
